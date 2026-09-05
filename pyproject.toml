@@ -1,0 +1,54 @@
+[project]
+name = "snapshotfs"
+version = "0.1.0"
+description = "Inspect filesystem snapshots imported from directory listings"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "argcomplete>=3.7.2",
+]
+
+[project.scripts]
+snapshotfs = "snapshotfs.cli:main"
+
+[project.optional-dependencies]
+fuse = [
+    "pyfuse3>=3.5.0 ; sys_platform == 'linux'",
+    "trio>=0.34.0 ; sys_platform == 'linux'",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["snapshotfs"]
+
+[tool.basedpyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+
+[[tool.mypy.overrides]]
+module = ["snapshotfs.fuse.adapter", "snapshotfs.fuse.adapter.*"]
+warn_unused_ignores = false
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.39.10",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "ruff>=0.16.6",
+]
