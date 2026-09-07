@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">SnapshotFS</title>
+  <desc id="description">A layered snapshot containing a filesystem tree.</desc>
+  <rect width="256" height="256" rx="48" fill="#091827"/>
+  <rect x="57" y="46" width="142" height="154" rx="18" fill="#1b3a57" opacity=".55"/>
+  <rect x="47" y="57" width="162" height="154" rx="18" fill="#214a68" opacity=".78"/>
+  <rect x="37" y="68" width="182" height="154" rx="18" fill="#102d47" stroke="#60d4c7" stroke-width="5"/>
+  <path d="M63 98h20M173 98h20" stroke="#60d4c7" stroke-linecap="round" stroke-width="7"/>
+  <path d="M128 111v40M83 151h90M83 151v25M128 151v25M173 151v25" fill="none" stroke="#f2f7fa" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/>
+  <circle cx="128" cy="96" r="13" fill="#f4c95d"/>
+  <circle cx="83" cy="176" r="13" fill="#60d4c7"/>
+  <circle cx="128" cy="176" r="13" fill="#60d4c7"/>
+  <circle cx="173" cy="176" r="13" fill="#60d4c7"/>
+</svg>

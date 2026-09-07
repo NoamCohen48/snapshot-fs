@@ -138,7 +138,7 @@ Automatic code page detection is deferred because it is inherently unreliable.
 The CLI will expose `--encoding`, for example:
 
 ```bash
-snapshotfs inspect listing.txt --source file --parser windows-dir --encoding cp1252
+snapshotfs sqlite create backup.snapshot --source file listing.txt --parser windows-dir --encoding cp1252
 ```
 
 ## Parser Contract
@@ -374,44 +374,41 @@ resolution, lockfiles, commands, builds, and publishing. Common commands are:
 ```bash
 uv sync --all-groups
 uv sync --all-groups --extra fuse
-uv run snapshotfs inspect listing.txt --source file --parser windows-dir
-uv run snapshotfs import backup.snapshot listing.txt --source file --parser windows-dir
-uv run snapshotfs inspect-store backup.snapshot --json
-uv run --extra fuse snapshotfs mount listing.txt /tmp/snapshotfs --source file --parser windows-dir
-uv run --extra fuse snapshotfs mount-store backup.snapshot /tmp/snapshotfs
+uv run snapshotfs sqlite create backup.snapshot --source file listing.txt --parser windows-dir
+uv run snapshotfs sqlite show backup.snapshot --json
+uv run --extra fuse snapshotfs memory mount /tmp/snapshotfs --source file listing.txt --parser windows-dir
+uv run --extra fuse snapshotfs sqlite mount backup.snapshot /tmp/snapshotfs
 uv run pytest
 uv run ruff check .
 uv run mypy src
 ```
 
-The argparse CLI uses argcomplete rather than a second command framework. A
-typed component registry maps explicitly selected source and parser names to
-factories. Parsing has two phases: a lightweight parser identifies the command
-and explicit selectors, then the final parser installs arguments from only that
-source and parser. Registrations own all construction syntax; the built-in
-`file` registration defines its input positional and `windows-dir` defines
-encoding and date-format options. Required arguments on unselected components
-therefore do not apply, and unrelated registrations may reuse option names.
-Duplicate names and conflicts between the selected pair fail clearly.
-Command-owned options and destinations, including selectors, output flags, and
-the mountpoint, are reserved against registration arguments.
+The Click CLI is organized by store type. A typed registry maps explicitly
+selected source and parser names to factories and lets stores contribute a
+top-level command group. SQLite owns `create`, `mount`, and `show`; memory owns
+`mount`. A future HTTP store can therefore add its own configuration and
+actions without changing root parser or dispatch code.
 
-Registry names always provide source and parser choices and completions. During
-completion, selectors are recovered from `COMP_LINE` with tolerant shell
-tokenization. Only exact registered selector values activate component
-arguments in this preliminary phase; partial values remain available to
-argcomplete as registry-name candidates. Selected component flags and values
-are then also available.
-`main` and parser construction accept an injected registry for embedding and
-tests. Users enable Bash or Zsh completion with
+Commands that import a listing identify the explicit source and parser, then
+install parameters from only that pair. Registrations own all construction
+syntax; the built-in `file` registration defines its input positional and
+`windows-dir` defines encoding and date-format options. Required arguments on
+unselected components therefore do not apply, and unrelated registrations may
+reuse option names. Duplicate names and conflicts between the selected pair
+fail clearly.
+
+Registry names provide source and parser choices and completions. Selected
+component flags and values are available after an exact selector is present.
+`main` and command construction accept an injected registry for embedding and
+tests. Users enable Bash, Zsh, or Fish completion with
 `eval "$(snapshotfs completion SHELL)"`.
 
-The `import` command uses the same two-phase registry selection as `inspect` and
-`mount`, then creates a SQLite artifact. `inspect-store` and `mount-store`
-explicitly consume that backend and do not require source or parser selection.
-All CLI paths close SQLite stores on normal return, mount failure, and
-interruption. The `mount` command creates a memory store from registry-created
-components, passes it to `snapshotfs.api.mount_store`, and runs until interrupted.
+`sqlite create` creates an artifact and can mount it immediately with `--mount`.
+`sqlite show` and `sqlite mount` consume an existing artifact without source or
+parser selection. All CLI paths close SQLite stores on normal return, mount
+failure, and interruption. `memory mount` creates a transient store from
+registry-created components, passes it to `snapshotfs.api.mount_store`, and
+runs until interrupted.
 pyfuse3 and Trio are Linux-only dependencies in the optional `fuse` extra;
 pyfuse3 requires system libfuse 3 development headers to build. Parsing and
 import tests remain runnable without pyfuse3, including on Windows and macOS,
@@ -466,7 +463,8 @@ caller does not want to import the source a second time.
 - SQLite schema migrations beyond rejecting unsupported versions.
 - File content ingestion and content-addressed storage.
 - HTTP and object-storage sources.
-- Format auto-detection and plugin discovery.
+- Format auto-detection and installed-package plugin discovery. Programmatic
+  store command registration is supported.
 - Localized Windows `dir /s`, GNU `ls -R`, and other listing formats.
 - UNC paths, alternate data streams, junctions, and reparse points.
 - Snapshot comparison and writable overlays.

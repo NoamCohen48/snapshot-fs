@@ -234,7 +234,7 @@ def test_malformed_diagnostics_and_count_are_typed_and_cli_is_clean(
     corrupt(path, "UPDATE diagnostics SET severity='bogus'")
     with pytest.raises(SQLiteSchemaError, match=r"diagnostics.*invalid value"):
         open_sqlite_store(path)
-    assert main(["inspect-store", str(path)]) == 1
+    assert main(["sqlite", "show", str(path)]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err.startswith("error: ")

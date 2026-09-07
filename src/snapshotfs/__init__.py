@@ -1,4 +1,4 @@
-"""Import, inspect, and mount filesystem snapshots."""
+"""Create, display, and mount filesystem snapshots."""
 
 from snapshotfs.api import (
     FuseUnavailableError,

@@ -31,12 +31,12 @@ single-snapshot SQLite artifacts.
   validated for every section and the complete listing.
 - Unsupported or malformed meaningful lines include line-numbered diagnostics.
 - Snapshot publication is atomic from the caller's perspective.
-- `snapshotfs inspect` can emit a human-readable tree and JSON.
+- `snapshotfs sqlite show` can emit a human-readable tree and JSON.
 - CLI calls require explicit `--source file` and `--parser windows-dir`; no
   probing or automatic detection is performed.
-- Argcomplete provides Bash and Zsh completion for commands, flags, paths, and
+- Click provides Bash, Zsh, and Fish completion for commands, flags, paths, and
   the explicit source/parser choices.
-- On Linux with the `fuse` extra, `snapshotfs mount` exposes the imported
+- On Linux with the `fuse` extra, `snapshotfs memory mount` exposes the imported
   in-memory tree as a read-only filesystem until interrupted.
 - Listing files have nullable content; zero-length files normalize to `b""` and
   non-empty metadata-only files normalize to `None`.
@@ -131,7 +131,7 @@ docs/
 4. Implement `FileSource` and strict incremental text decoding.
 5. Implement the English Windows `dir /s` state-machine parser.
 6. Implement path normalization and the atomic in-memory snapshot builder.
-7. Implement `snapshotfs inspect` with tree and JSON output.
+7. Implement `snapshotfs sqlite show` with tree and JSON output.
 8. Add focused fixtures and unit tests for all acceptance criteria.
 9. Run formatting, linting, typing, and tests through `uv`.
 10. Perform an independent code review and repeat fixes and review until the
@@ -246,7 +246,7 @@ Implementation gate:
 ## Read-Only Mount Slice
 
 The Linux mount slice is implemented with pyfuse3 and Trio in the optional
-`fuse` extra. `snapshotfs mount` imports a listing into the immutable in-memory
+`fuse` extra. `snapshotfs memory mount` imports a listing into the immutable in-memory
 store and mounts it until interrupted. The adapter provides stable attributes,
 deterministic directory offsets, exact mounted-name lookup, handle validation,
 content-status xattrs, explicit `EROFS` mutations, default `ENODATA` reads, and
@@ -255,7 +255,7 @@ adapter tests run directly when the extra and system library are available.
 
 ## SQLite Persistence Slice
 
-`snapshotfs import OUTPUT --source ... --parser ...` and
+`snapshotfs sqlite create OUTPUT --source ... --parser ...` and
 `create_sqlite_store` streams normalized nodes into an unpublished sibling
 database. Shared normalization and merge logic keeps the memory and SQLite
 builders behaviorally aligned. Finalization uses SQL updates rather than loading
@@ -266,5 +266,6 @@ diagnostics, and JSON before exposure. No-overwrite publication is race-safe;
 explicit overwrite is atomic last-finisher-wins. Directory durability and
 post-link cleanup failures report typed errors noting that publication may
 already have occurred. Pre-publication cleanup is best effort and never masks
-the original failure. `inspect-store`, `mount-store`, and `open_sqlite_store` reopen
-one-snapshot artifacts with synchronized read/close behavior and root inode 1.
+the original failure. `sqlite show`, `sqlite mount`, and `open_sqlite_store`
+reopen one-snapshot artifacts with synchronized read/close behavior and root
+inode 1.

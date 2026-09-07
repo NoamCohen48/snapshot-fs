@@ -1,270 +1,256 @@
-# PYTHON_ARGCOMPLETE_OK
-"""SnapshotFS command-line inspection interface."""
+"""SnapshotFS command-line interface."""
 
-import argparse
 import json
-import os
-import shlex
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from contextlib import closing
 
-import argcomplete
-from argcomplete.shell_integration import shellcode
+import click
+from click.shell_completion import get_completion_class
 
 import snapshotfs.api as api
-from snapshotfs.cli_output import format_diagnostic, json_document, print_tree
-from snapshotfs.cli_registry import CLIRegistry, default_registry
+from snapshotfs.cli_output import json_document, print_tree
+from snapshotfs.cli_registry import (
+    CLIRegistry,
+    RegistryError,
+    StoreCLIRegistration,
+    default_registry,
+)
 from snapshotfs.import_service import ImportFailure
+from snapshotfs.parsers.base import Parser
 from snapshotfs.sources import SourceError
+from snapshotfs.sources.base import Source
 
 
 def main(argv: Sequence[str] | None = None, registry: CLIRegistry | None = None) -> int:
-    active_registry = registry if registry is not None else default_registry()
-    execution_argv = list(argv) if argv is not None else sys.argv[1:]
-    completion_argv = _completion_arguments(active_registry)
-    selector = _build_selector_parser(active_registry, required=completion_argv is None)
-    selector_args, _ = selector.parse_known_args(
-        execution_argv if completion_argv is None else completion_argv
-    )
-    source_name = getattr(selector_args, "source", None)
-    parser_name = getattr(selector_args, "parser", None)
-    parser = _build_parser(active_registry, source_name, parser_name)
-    argcomplete.autocomplete(parser)
-    args = parser.parse_args(argv)
-
-    if args.command == "completion":
-        print(shellcode(["snapshotfs"], shell=args.shell))
-        return 0
-
+    """Run the CLI and return its process exit status."""
     try:
-        if args.command == "inspect":
-            source = active_registry.create_source(args.source, args)
-            listing_parser = active_registry.create_parser(args.parser, args)
-            memory_store = api.create_memory_store(source, listing_parser)
-            if args.as_json:
-                print(
-                    json.dumps(
-                        json_document(memory_store), indent=2, ensure_ascii=False
-                    )
-                )
-            else:
-                print_tree(memory_store)
-        elif args.command == "mount":
-            source = active_registry.create_source(args.source, args)
-            listing_parser = active_registry.create_parser(args.parser, args)
-            memory_store = api.create_memory_store(source, listing_parser)
-            api.mount_store(
-                memory_store,
-                args.mountpoint,
-                simulate_missing_content=args.simulate_missing_content,
-            )
-        elif args.command == "import":
-            source = active_registry.create_source(args.source, args)
-            listing_parser = active_registry.create_parser(args.parser, args)
-            sqlite_store = api.create_sqlite_store(
-                source, listing_parser, args.output, overwrite=args.overwrite
-            )
-            sqlite_store.close()
-        elif args.command == "inspect-store":
-            with api.open_sqlite_store(args.snapshot) as sqlite_store:
-                if args.as_json:
-                    print(
-                        json.dumps(
-                            json_document(sqlite_store), indent=2, ensure_ascii=False
-                        )
-                    )
-                else:
-                    print_tree(sqlite_store)
-        else:
-            with api.open_sqlite_store(args.snapshot) as sqlite_store:
-                api.mount_store(
-                    sqlite_store,
-                    args.mountpoint,
-                    simulate_missing_content=args.simulate_missing_content,
-                )
+        command = build_cli(registry if registry is not None else default_registry())
+        result = command.main(
+            args=list(argv) if argv is not None else None,
+            prog_name="snapshotfs",
+            standalone_mode=False,
+        )
+    except click.ClickException as exc:
+        exc.show(file=sys.stderr)
+        return exc.exit_code
     except ImportFailure as exc:
+        from snapshotfs.cli_output import format_diagnostic
+
         for diagnostic in exc.diagnostics:
-            print(format_diagnostic(diagnostic), file=sys.stderr)
+            click.echo(format_diagnostic(diagnostic), err=True)
         if exc.diagnostic_count > len(exc.diagnostics):
-            print(
+            click.echo(
                 f"{exc.diagnostic_count} diagnostics observed; "
                 f"showing first {len(exc.diagnostics)}",
-                file=sys.stderr,
+                err=True,
             )
         return 1
     except SourceError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        click.echo(f"error: {exc}", err=True)
         return 1
     except api.FuseUnavailableError:
-        print(
+        click.echo(
             "error: FUSE support is unavailable; install it with "
             "`uv sync --extra fuse`",
-            file=sys.stderr,
+            err=True,
         )
         return 1
+    except click.Abort:
+        click.echo("Aborted!", err=True)
+        return 130
     except KeyboardInterrupt:
-        pass
-    except (OSError, RuntimeError) as exc:
-        if args.command in {"mount", "mount-store"}:
-            message = f"cannot mount {args.mountpoint}: {exc}"
-        else:
-            message = str(exc)
-        print(f"error: {message}", file=sys.stderr)
+        return 130
+    except (OSError, RuntimeError, RegistryError) as exc:
+        click.echo(f"error: {exc}", err=True)
         return 1
-    return 0
+    return result if isinstance(result, int) else 0
 
 
-def _build_parser(
-    registry: CLIRegistry | None = None,
-    source_name: str | None = None,
-    parser_name: str | None = None,
-) -> argparse.ArgumentParser:
-    active_registry = registry if registry is not None else default_registry()
-    parser = argparse.ArgumentParser(prog="snapshotfs")
-    commands = parser.add_subparsers(dest="command", required=True)
-    inspect = commands.add_parser("inspect", help="validate and print a listing")
-    inspect.add_argument("--json", action="store_true", dest="as_json")
-    _add_component_options(inspect, active_registry, source_name, parser_name)
-    mount = commands.add_parser("mount", help="mount a listing read-only")
-    mount.add_argument(
-        "--simulate-missing-content",
-        action="store_true",
-        help="return NUL stand-ins for declared missing file content",
-    )
-    _add_component_options(
-        mount,
-        active_registry,
-        source_name,
-        parser_name,
-        reserved_destinations={"mountpoint"},
-    )
-    mount.add_argument("mountpoint")
-    import_command = commands.add_parser(
-        "import", help="create a persistent SQLite snapshot artifact"
-    )
-    import_command.add_argument("output")
-    import_command.add_argument("--overwrite", action="store_true")
-    _add_component_options(
-        import_command,
-        active_registry,
-        source_name,
-        parser_name,
-        reserved_destinations={"output", "overwrite"},
-    )
-    inspect_store = commands.add_parser(
-        "inspect-store", help="inspect a persistent SQLite snapshot"
-    )
-    inspect_store.add_argument("snapshot")
-    inspect_store.add_argument("--json", action="store_true", dest="as_json")
-    mount_store = commands.add_parser(
-        "mount-store", help="mount a persistent SQLite snapshot read-only"
-    )
-    mount_store.add_argument("snapshot")
-    mount_store.add_argument("mountpoint")
-    mount_store.add_argument(
-        "--simulate-missing-content",
-        action="store_true",
-        help="return NUL stand-ins for declared missing file content",
-    )
-    completion = commands.add_parser(
-        "completion", help="print shell completion registration code"
-    )
-    completion.add_argument("shell", choices=["bash", "zsh"])
-    return parser
+def build_cli(registry: CLIRegistry) -> click.Group:
+    """Build a root command from built-in and registered store command groups."""
+    root = click.Group(name="snapshotfs", help="Create and mount filesystem snapshots.")
+    registrations = [*_builtin_stores(), *registry.stores]
+    seen: set[str] = set()
+    for registration in registrations:
+        if registration.name in seen or registration.name == "completion":
+            raise RegistryError(
+                f"duplicate or reserved store registration name {registration.name!r}"
+            )
+        seen.add(registration.name)
+        root.add_command(registration.command_factory(registry), registration.name)
+    root.add_command(_completion_command())
+    return root
 
 
-def _add_component_options(
-    command: argparse.ArgumentParser,
-    registry: CLIRegistry,
-    source_name: str | None,
-    parser_name: str | None,
-    *,
-    reserved_destinations: set[str] | None = None,
-) -> None:
-    command.add_argument("--source", choices=registry.source_names, required=True)
-    command.add_argument("--parser", choices=registry.parser_names, required=True)
-    registry.add_selected_arguments(
-        command,
-        source_name,
-        parser_name,
-        reserved_destinations={"command", *(reserved_destinations or set())},
+def _builtin_stores() -> tuple[StoreCLIRegistration, ...]:
+    return (
+        StoreCLIRegistration("sqlite", _sqlite_commands),
+        StoreCLIRegistration("memory", _memory_commands),
     )
 
 
-def _build_selector_parser(
-    registry: CLIRegistry, *, required: bool
-) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="snapshotfs", add_help=False)
-    commands = parser.add_subparsers(dest="command", required=required)
-    for name in ("inspect", "mount", "import"):
-        command = commands.add_parser(name, add_help=False)
-        command.add_argument(
-            "--source", choices=registry.source_names, required=required
+def _sqlite_commands(registry: CLIRegistry) -> click.Group:
+    group = click.Group(name="sqlite", help="Create, mount, and display SQLite stores.")
+
+    def create(**arguments: object) -> None:
+        mountpoint = arguments["mount"]
+        if mountpoint is None and arguments["simulate_missing_content"]:
+            raise click.UsageError("--simulate-missing-content requires --mount")
+        source, parser = _create_components(registry, arguments)
+        store = api.create_sqlite_store(
+            source,
+            parser,
+            str(arguments["output"]),
+            overwrite=bool(arguments["overwrite"]),
         )
-        command.add_argument(
-            "--parser", choices=registry.parser_names, required=required
+        if mountpoint is None:
+            store.close()
+            return
+        with closing(store):
+            api.mount_store(
+                store,
+                str(mountpoint),
+                simulate_missing_content=bool(arguments["simulate_missing_content"]),
+            )
+
+    group.add_command(
+        registry.component_command(
+            name="create",
+            help="Parse a source into a persistent SQLite store.",
+            callback=create,
+            parameters=[
+                click.Argument(["output"], type=click.Path(path_type=str)),
+                _source_option(registry),
+                _parser_option(registry),
+                click.Option(["--overwrite"], is_flag=True),
+                click.Option(
+                    ["--mount"],
+                    type=click.Path(path_type=str),
+                    help="Mount the new store immediately at this path.",
+                ),
+                _simulate_option(),
+            ],
         )
-    for name in ("inspect-store", "mount-store", "completion"):
-        commands.add_parser(name, add_help=False)
-    return parser
+    )
 
+    @click.command(help="Mount an existing SQLite store read-only.")
+    @click.argument("snapshot", type=click.Path(path_type=str))
+    @click.argument("mountpoint", type=click.Path(path_type=str))
+    @click.option(
+        "--simulate-missing-content",
+        is_flag=True,
+        help="Return NUL stand-ins for declared missing file content.",
+    )
+    def mount(
+        snapshot: str, mountpoint: str, simulate_missing_content: bool
+    ) -> None:
+        with api.open_sqlite_store(snapshot) as store:
+            api.mount_store(
+                store,
+                mountpoint,
+                simulate_missing_content=simulate_missing_content,
+            )
 
-def _completion_arguments(registry: CLIRegistry) -> list[str] | None:
-    if "_ARGCOMPLETE" not in os.environ:
-        return None
-    line = os.environ.get("COMP_LINE", "")
-    try:
-        point = int(os.environ.get("COMP_POINT", len(line)))
-    except ValueError:
-        point = len(line)
-    tokens: list[str] = []
-    lexer = shlex.shlex(line[: max(0, point)], posix=True)
-    lexer.whitespace_split = True
-    lexer.commenters = ""
-    try:
-        for token in lexer:
-            tokens.append(token)
-    except ValueError:
-        pass
-    return _selector_arguments(tokens[1:], registry) if tokens else []
-
-
-def _selector_arguments(arguments: Sequence[str], registry: CLIRegistry) -> list[str]:
-    commands = {
-        "inspect",
-        "mount",
-        "import",
-        "inspect-store",
-        "mount-store",
-        "completion",
-    }
-    if not arguments or arguments[0] not in commands:
-        return []
-    selected = [arguments[0]]
-    index = 1
-    while index < len(arguments):
-        argument = arguments[index]
-        if argument in {"--source", "--parser"}:
-            if index + 1 < len(arguments) and not arguments[index + 1].startswith("-"):
-                value = arguments[index + 1]
-                names = (
-                    registry.source_names
-                    if argument == "--source"
-                    else registry.parser_names
+    @click.command(help="Display an existing SQLite store.")
+    @click.argument("snapshot", type=click.Path(path_type=str))
+    @click.option("--json", "as_json", is_flag=True)
+    def show(snapshot: str, as_json: bool) -> None:
+        with api.open_sqlite_store(snapshot) as store:
+            if as_json:
+                click.echo(
+                    json.dumps(json_document(store), indent=2, ensure_ascii=False)
                 )
-                if value in names:
-                    selected.extend((argument, value))
-                index += 1
-        elif (
-            argument.startswith("--source=")
-            and argument.removeprefix("--source=") in registry.source_names
-        ) or (
-            argument.startswith("--parser=")
-            and argument.removeprefix("--parser=") in registry.parser_names
-        ):
-            selected.append(argument)
-        index += 1
-    return selected
+            else:
+                print_tree(store)
+
+    group.add_command(mount)
+    group.add_command(show)
+    return group
+
+
+def _memory_commands(registry: CLIRegistry) -> click.Group:
+    group = click.Group(name="memory", help="Build transient in-memory stores.")
+
+    def mount(**arguments: object) -> None:
+        source, parser = _create_components(registry, arguments)
+        store = api.create_memory_store(source, parser)
+        api.mount_store(
+            store,
+            str(arguments["mountpoint"]),
+            simulate_missing_content=bool(arguments["simulate_missing_content"]),
+        )
+
+    group.add_command(
+        registry.component_command(
+            name="mount",
+            help="Parse a source and mount it from memory.",
+            callback=mount,
+            parameters=[
+                click.Argument(["mountpoint"], type=click.Path(path_type=str)),
+                _source_option(registry),
+                _parser_option(registry),
+                _simulate_option(),
+            ],
+        )
+    )
+    return group
+
+
+def _source_option(registry: CLIRegistry) -> click.Option:
+    return click.Option(
+        ["--source"],
+        type=click.Choice(registry.source_names),
+        required=True,
+        help="Source implementation used to read the listing.",
+    )
+
+
+def _parser_option(registry: CLIRegistry) -> click.Option:
+    return click.Option(
+        ["--parser"],
+        type=click.Choice(registry.parser_names),
+        required=True,
+        help="Parser implementation used to interpret the listing.",
+    )
+
+
+def _simulate_option() -> click.Option:
+    return click.Option(
+        ["--simulate-missing-content"],
+        is_flag=True,
+        help="Return NUL stand-ins for declared missing file content.",
+    )
+
+
+def _create_components(
+    registry: CLIRegistry, arguments: Mapping[str, object]
+) -> tuple[Source, Parser]:
+    source_name = str(arguments["source"])
+    parser_name = str(arguments["parser"])
+    return (
+        registry.create_source(source_name, arguments),
+        registry.create_parser(parser_name, arguments),
+    )
+
+
+def _completion_command() -> click.Command:
+    @click.command(name="completion", help="Print shell completion registration code.")
+    @click.argument("shell", type=click.Choice(["bash", "zsh", "fish"]))
+    @click.pass_context
+    def completion(context: click.Context, shell: str) -> None:
+        completion_class = get_completion_class(shell)
+        if completion_class is None:
+            raise click.ClickException(f"unsupported shell {shell!r}")
+        complete = completion_class(
+            cli=context.find_root().command,
+            ctx_args={},
+            prog_name="snapshotfs",
+            complete_var="_SNAPSHOTFS_COMPLETE",
+        )
+        click.echo(complete.source())
+
+    return completion
 
 
 if __name__ == "__main__":

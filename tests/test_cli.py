@@ -7,6 +7,7 @@ from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 from typing import BinaryIO
 
+import click
 import pytest
 
 import snapshotfs.api as api
@@ -17,10 +18,7 @@ from snapshotfs.cli_registry import (
     SourceRegistration,
 )
 from snapshotfs.diagnostics import DiagnosticCollector
-from snapshotfs.model import NodeKind, Observation, ParsedEntry
 from snapshotfs.parsers.base import ParseResult
-
-EXPLICIT_INPUT = ["--source", "file", "--parser", "windows-dir"]
 
 
 class MemorySource:
@@ -46,143 +44,111 @@ class EmptyParser:
         return ParseResult(iter(()), DiagnosticCollector())
 
 
-def test_cli_prints_tree(listing_file: Path, capsys) -> None:
-    assert main(["inspect", str(listing_file), *EXPLICIT_INPUT]) == 0
+def test_inspect_command_is_removed(capsys) -> None:
+    assert main(["inspect"]) == 2
+    assert "No such command 'inspect'" in capsys.readouterr().err
+
+
+def test_sqlite_create_and_show_tree(
+    listing_file: Path, tmp_path: Path, capsys
+) -> None:
+    artifact = tmp_path / "listing.snapshot"
+    assert (
+        main(
+            [
+                "sqlite",
+                "create",
+                str(artifact),
+                "--source",
+                "file",
+                str(listing_file),
+                "--parser",
+                "windows-dir",
+            ]
+        )
+        == 0
+    )
+    assert main(["sqlite", "show", str(artifact)]) == 0
     output = capsys.readouterr().out
     assert "C/" in output
     assert "notes file.txt" in output
     assert "Documents/" in output
 
 
-def test_cli_prints_json_with_naive_source_time(listing_file: Path, capsys) -> None:
-    assert main(["inspect", str(listing_file), *EXPLICIT_INPUT, "--json"]) == 0
-    document = json.loads(capsys.readouterr().out)
-    note = next(
-        node for node in document["nodes"] if node["mounted_name"] == "notes file.txt"
-    )
-    assert note["modified_at"] == "2024-01-02T15:05:00"
-    assert not note["modified_at"].endswith("Z")
-    assert note["content"] is None
-    assert document["diagnostics"] == []
+def test_sqlite_show_json_preserves_parser_options(
+    tmp_path: Path, capsys
+) -> None:
+    listing = tmp_path / "western.txt"
+    artifact = tmp_path / "western.snapshot"
+    text = """ Directory of C:\\
 
-
-def test_cli_encoding_option(tmp_path: Path, capsys) -> None:
-    path = tmp_path / "western.txt"
-    text = """ Directory of C:\\\n
-01/02/2024 10:00 0 caf\N{LATIN SMALL LETTER E WITH ACUTE}.txt
+13/02/2024 10:00 0 caf\N{LATIN SMALL LETTER E WITH ACUTE}.txt
  1 File(s) 0 bytes
  0 Dir(s) 0 bytes free
  Total Files Listed:
  1 File(s) 0 bytes
  0 Dir(s) 0 bytes free
 """
-    path.write_bytes(text.encode("cp1252"))
-    assert main(["inspect", str(path), *EXPLICIT_INPUT, "--encoding", "cp1252"]) == 0
-    assert "caf\N{LATIN SMALL LETTER E WITH ACUTE}.txt" in capsys.readouterr().out
-
-
-def test_cli_date_format_option(tmp_path: Path, capsys) -> None:
-    path = tmp_path / "dmy.txt"
-    path.write_text(
-        """ Directory of C:\\
-13/02/2024 10:00 0 dated.txt
- 1 File(s) 0 bytes
- 0 Dir(s) 0 bytes free
- Total Files Listed:
- 1 File(s) 0 bytes
- 0 Dir(s) 0 bytes free
-"""
-    )
+    listing.write_bytes(text.encode("cp1252"))
     assert (
         main(
             [
-                "inspect",
-                str(path),
-                *EXPLICIT_INPUT,
+                "sqlite",
+                "create",
+                str(artifact),
+                "--source",
+                "file",
+                str(listing),
+                "--parser",
+                "windows-dir",
+                "--encoding",
+                "cp1252",
                 "--date-format",
                 "dmy",
-                "--json",
             ]
         )
         == 0
     )
+    assert main(["sqlite", "show", str(artifact), "--json"]) == 0
     document = json.loads(capsys.readouterr().out)
-    dated = next(
-        node for node in document["nodes"] if node["mounted_name"] == "dated.txt"
+    node = next(item for item in document["nodes"] if item["kind"] == "file")
+    assert node["mounted_name"] == "caf\N{LATIN SMALL LETTER E WITH ACUTE}.txt"
+    assert node["modified_at"] == "2024-02-13T10:00:00"
+
+
+def test_create_errors_use_stderr_and_nonzero_status(
+    tmp_path: Path, capsys
+) -> None:
+    listing = tmp_path / "bad.txt"
+    listing.write_text("unknown\n")
+    assert (
+        main(
+            [
+                "sqlite",
+                "create",
+                str(tmp_path / "bad.snapshot"),
+                "--source",
+                "file",
+                str(listing),
+                "--parser",
+                "windows-dir",
+            ]
+        )
+        == 1
     )
-    assert dated["modified_at"] == "2024-02-13T10:00:00"
-
-
-def test_cli_errors_use_stderr_and_nonzero_status(tmp_path: Path, capsys) -> None:
-    path = tmp_path / "bad.txt"
-    path.write_text("unknown\n")
-    assert main(["inspect", str(path), *EXPLICIT_INPUT]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "line 1" in captured.err
 
 
-def test_cli_missing_source_is_contextual(tmp_path: Path, capsys) -> None:
-    path = tmp_path / "absent.txt"
-    assert main(["inspect", str(path), *EXPLICIT_INPUT]) == 1
-    assert str(path) in capsys.readouterr().err
-
-
-def test_cli_human_and_json_retain_successful_warnings(capsys) -> None:
-    class WarningParser:
-        format_name = "warning"
-
-        def parse(self, stream: BinaryIO) -> ParseResult:
-            diagnostics = DiagnosticCollector()
-
-            def entries():
-                diagnostics.warning("TEST_WARNING", "visible warning", 7)
-                yield ParsedEntry(
-                    ("warning",),
-                    NodeKind.DIRECTORY,
-                    Observation.SECTION_HEADER,
-                    None,
-                    None,
-                    1,
-                )
-
-            return ParseResult(entries(), diagnostics)
-
-    registry = CLIRegistry(
-        sources=[SourceRegistration("memory", lambda _args: MemorySource())],
-        parsers=[ParserRegistration("warning", lambda _args: WarningParser())],
-    )
-    arguments = ["inspect", "--source", "memory", "--parser", "warning"]
-    assert main(arguments, registry) == 0
-    assert "warning: line 7: TEST_WARNING: visible warning" in capsys.readouterr().out
-
-    assert main([*arguments, "--json"], registry) == 0
-    document = json.loads(capsys.readouterr().out)
-    assert document["diagnostics"] == [
-        {
-            "severity": "warning",
-            "line_number": 7,
-            "code": "TEST_WARNING",
-            "message": "visible warning",
-        }
-    ]
-    assert document["diagnostic_count"] == 1
-
-
-def test_mount_cli_creates_memory_store_then_mounts_it(
-    tmp_path: Path, monkeypatch
-) -> None:
-    mountpoint = tmp_path / "mount"
-    mountpoint.mkdir()
+def test_memory_mount_creates_store_then_mounts_it(tmp_path: Path, monkeypatch) -> None:
     called: dict[str, object] = {}
     source = MemorySource()
     parser = EmptyParser()
-
     store = object()
 
     def fake_create_memory_store(
-        actual_source: MemorySource,
-        actual_parser: EmptyParser,
+        actual_source: MemorySource, actual_parser: EmptyParser
     ) -> object:
         called.update(source=actual_source, parser=actual_parser)
         return store
@@ -200,146 +166,194 @@ def test_mount_cli_creates_memory_store_then_mounts_it(
         )
 
     registry = CLIRegistry(
-        sources=[SourceRegistration("memory", lambda _args: source)],
-        parsers=[ParserRegistration("empty", lambda _args: parser)],
+        sources=[SourceRegistration("test", lambda _arguments: source)],
+        parsers=[ParserRegistration("empty", lambda _arguments: parser)],
     )
     monkeypatch.setattr(api, "create_memory_store", fake_create_memory_store)
     monkeypatch.setattr(api, "mount_store", fake_mount_store)
+    mountpoint = tmp_path / "mount"
     assert (
         main(
             [
-                "mount",
-                "--source",
                 "memory",
+                "mount",
+                str(mountpoint),
+                "--source",
+                "test",
                 "--parser",
                 "empty",
-                str(mountpoint),
                 "--simulate-missing-content",
             ],
             registry,
         )
         == 0
     )
-    assert called["source"] is source
-    assert called["parser"] is parser
-    assert called["store"] is store
-    assert called["path"] == str(mountpoint)
-    assert called["simulate_missing_content"] is True
-
-
-def test_inspect_runtime_error_does_not_access_mountpoint(capsys) -> None:
-    class FailingParser(EmptyParser):
-        def parse(self, stream: BinaryIO) -> ParseResult:
-            raise RuntimeError("inspect failed")
-
-    registry = CLIRegistry(
-        sources=[SourceRegistration("memory", lambda _args: MemorySource())],
-        parsers=[ParserRegistration("failing", lambda _args: FailingParser())],
-    )
-    assert main(["inspect", "--source", "memory", "--parser", "failing"], registry) == 1
-    assert capsys.readouterr().err == "error: inspect failed\n"
+    assert called == {
+        "source": source,
+        "parser": parser,
+        "store": store,
+        "path": str(mountpoint),
+        "simulate_missing_content": True,
+    }
 
 
 @pytest.mark.parametrize("missing", ["source", "parser"])
-def test_cli_requires_explicit_source_and_parser(
-    listing_file: Path, missing: str
+def test_create_requires_explicit_source_and_parser(
+    listing_file: Path, tmp_path: Path, missing: str
 ) -> None:
-    arguments = ["inspect", str(listing_file)]
+    arguments = [
+        "sqlite",
+        "create",
+        str(tmp_path / "listing.snapshot"),
+        str(listing_file),
+    ]
     if missing != "source":
         arguments.extend(["--source", "file"])
     if missing != "parser":
         arguments.extend(["--parser", "windows-dir"])
-    with pytest.raises(SystemExit):
-        main(arguments)
+    assert main(arguments) == 2
 
 
-@pytest.mark.parametrize("shell", ["bash", "zsh"])
+@pytest.mark.parametrize("shell", ["bash", "zsh", "fish"])
 def test_cli_prints_completion_registration(shell: str, capsys) -> None:
     assert main(["completion", shell]) == 0
     output = capsys.readouterr().out
-    assert "_python_argcomplete" in output
+    assert "_SNAPSHOTFS_COMPLETE" in output
     assert "snapshotfs" in output
 
 
 @pytest.mark.parametrize(
-    ("line", "expected"),
+    ("words", "word_index", "expected"),
     [
-        ("snapshotfs inspect listing.txt --source ", "file"),
-        ("snapshotfs inspect listing.txt --source fi", "file"),
-        ("snapshotfs inspect listing.txt --source=fi", "--source=file"),
-        ("snapshotfs inspect listing.txt --parser ", "windows-dir"),
-        ("snapshotfs inspect listing.txt --parser wind", "windows-dir"),
-        ("snapshotfs inspect listing.txt --parser=wind", "--parser=windows-dir"),
+        ("snapshotfs s", 1, "sqlite"),
+        ("snapshotfs sqlite c", 2, "create"),
         (
-            "snapshotfs inspect listing.txt --source file --parser windows-dir "
-            "--encoding cp12",
-            "cp1252",
+            "snapshotfs sqlite create out --source f",
+            5,
+            "file",
         ),
         (
-            "snapshotfs inspect listing.txt --source file --parser windows-dir "
-            "--date-format d",
-            "dmy",
-        ),
-        (
-            "snapshotfs inspect listing.txt --source file --parser windows-dir --",
+            "snapshotfs sqlite create out --source file input "
+            "--parser windows-dir --enc",
+            9,
             "--encoding",
         ),
-        ("snapshotfs inspect listing.txt --", "--source"),
-        ("snapshotfs inspect listing.txt --", "--parser"),
-        ("snapshotfs imp", "import"),
-        ("snapshotfs import output listing.txt --", "--overwrite"),
-        ("snapshotfs inspect-store snapshot.db --", "--json"),
         (
-            "snapshotfs mount-store snapshot.db mountpoint --",
-            "--simulate-missing-content",
+            "snapshotfs memory mount path --source file input "
+            "--parser windows-dir --date-format d",
+            10,
+            "dmy",
         ),
     ],
 )
-def test_argcomplete_suggests_flags_and_choices(
-    tmp_path: Path, line: str, expected: str
-) -> None:
-    output = tmp_path / "completions"
+def test_click_completion(words: str, word_index: int, expected: str) -> None:
     environment = os.environ | {
-        "COMP_LINE": line,
-        "COMP_POINT": str(len(line)),
-        "_ARGCOMPLETE": "1",
-        "_ARGCOMPLETE_SHELL": "bash",
-        "_ARGCOMPLETE_STDOUT_FILENAME": str(output),
+        "COMP_WORDS": words,
+        "COMP_CWORD": str(word_index),
+        "_SNAPSHOTFS_COMPLETE": "bash_complete",
     }
-    subprocess.run(
+    result = subprocess.run(
         [sys.executable, "-m", "snapshotfs.cli"],
         env=environment,
         check=True,
+        capture_output=True,
+        text=True,
     )
-    assert expected in output.read_text().split()
+    assert expected in result.stdout
 
 
-@pytest.mark.parametrize(
-    ("line", "filename"),
-    [
-        ("snapshotfs inspect-store arti", "artifact.snapshot"),
-        (
-            "snapshotfs import output.snapshot --source file --parser windows-dir list",
-            "listing.txt",
-        ),
-    ],
-)
-def test_argcomplete_suggests_store_and_source_paths(
-    tmp_path: Path, line: str, filename: str
-) -> None:
-    (tmp_path / filename).write_bytes(b"")
-    output = tmp_path / "completions"
+def test_selected_file_source_completes_input_paths(tmp_path: Path) -> None:
+    (tmp_path / "listing.txt").write_bytes(b"")
     environment = os.environ | {
-        "COMP_LINE": line,
-        "COMP_POINT": str(len(line)),
-        "_ARGCOMPLETE": "1",
-        "_ARGCOMPLETE_SHELL": "bash",
-        "_ARGCOMPLETE_STDOUT_FILENAME": str(output),
+        "COMP_WORDS": (
+            "snapshotfs sqlite create out --source file lis"
+        ),
+        "COMP_CWORD": "6",
+        "_SNAPSHOTFS_COMPLETE": "bash_complete",
     }
-    subprocess.run(
+    result = subprocess.run(
         [sys.executable, "-m", "snapshotfs.cli"],
         cwd=tmp_path,
         env=environment,
         check=True,
+        capture_output=True,
+        text=True,
     )
-    assert filename in output.read_text().split()
+    assert result.stdout == "file,lis\n"
+
+
+def test_selected_component_options_appear_in_contextual_help(capsys) -> None:
+    assert (
+        main(
+            [
+                "sqlite",
+                "create",
+                "--source",
+                "file",
+                "--parser",
+                "windows-dir",
+                "--help",
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert "--encoding" in output
+    assert "--date-format" in output
+
+
+def test_custom_component_parameters_are_installed_only_when_selected(
+    tmp_path: Path, monkeypatch
+) -> None:
+    constructed: dict[str, object] = {}
+
+    def make_source(arguments) -> MemorySource:
+        constructed["payload"] = arguments["payload"]
+        return MemorySource(str(arguments["payload"]).encode())
+
+    def make_parser(arguments) -> EmptyParser:
+        constructed["label"] = arguments["label"]
+        return EmptyParser()
+
+    registry = CLIRegistry(
+        sources=[
+            SourceRegistration(
+                "custom",
+                make_source,
+                (click.Option(["--payload"], required=True),),
+            ),
+            SourceRegistration(
+                "other",
+                lambda _arguments: MemorySource(),
+                (click.Option(["--unused"], required=True),),
+            ),
+        ],
+        parsers=[
+            ParserRegistration(
+                "custom",
+                make_parser,
+                (click.Option(["--label"], required=True),),
+            )
+        ],
+    )
+    monkeypatch.setattr(api, "mount_store", lambda *_args, **_kwargs: None)
+    assert (
+        main(
+            [
+                "memory",
+                "mount",
+                str(tmp_path / "mount"),
+                "--source",
+                "custom",
+                "--parser",
+                "custom",
+                "--payload",
+                "data",
+                "--label",
+                "selected",
+            ],
+            registry,
+        )
+        == 0
+    )
+    assert constructed == {"payload": "data", "label": "selected"}

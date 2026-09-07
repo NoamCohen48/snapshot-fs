@@ -299,13 +299,16 @@ def test_nullable_content_reference_and_status_roundtrip(tmp_path: Path) -> None
         assert node.content_ref == "https://example.invalid/content"
 
 
-def test_cli_import_inspect_store_and_mount_store_close(
+def test_cli_create_show_and_mount_close(
     listing_file: Path, tmp_path: Path, capsys, monkeypatch
 ) -> None:
     artifact = tmp_path / "listing.snapshot"
     selectors = ["--source", "file", "--parser", "windows-dir"]
-    assert main(["import", str(artifact), str(listing_file), *selectors]) == 0
-    assert main(["inspect-store", str(artifact), "--json"]) == 0
+    assert (
+        main(["sqlite", "create", str(artifact), str(listing_file), *selectors])
+        == 0
+    )
+    assert main(["sqlite", "show", str(artifact), "--json"]) == 0
     assert '"source_format": "windows-dir"' in capsys.readouterr().out
 
     captured = None
@@ -321,9 +324,48 @@ def test_cli_import_inspect_store_and_mount_store_close(
     assert (
         main(
             [
-                "mount-store",
+                "sqlite",
+                "mount",
                 str(artifact),
                 str(tmp_path / "mount"),
+                "--simulate-missing-content",
+            ]
+        )
+        == 0
+    )
+    assert captured is not None
+    with pytest.raises(SQLiteStoreClosedError):
+        list(captured.iter_nodes())
+
+
+def test_cli_create_can_mount_immediately_and_closes(
+    listing_file: Path, tmp_path: Path, monkeypatch
+) -> None:
+    artifact = tmp_path / "mounted.snapshot"
+    mountpoint = tmp_path / "mount"
+    captured = None
+
+    def fake_mount(store, path: str, *, simulate_missing_content: bool) -> None:
+        nonlocal captured
+        captured = store
+        assert path == str(mountpoint)
+        assert simulate_missing_content
+        assert list(store.iter_nodes())
+
+    monkeypatch.setattr(api, "mount_store", fake_mount)
+    assert (
+        main(
+            [
+                "sqlite",
+                "create",
+                str(artifact),
+                str(listing_file),
+                "--source",
+                "file",
+                "--parser",
+                "windows-dir",
+                "--mount",
+                str(mountpoint),
                 "--simulate-missing-content",
             ]
         )
