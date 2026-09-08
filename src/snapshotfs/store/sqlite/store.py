@@ -8,15 +8,15 @@ from typing import cast
 
 from snapshotfs.diagnostics import ImportDiagnostic, Severity
 from snapshotfs.model import ContentStatus, Node, NodeKind, Snapshot
-from snapshotfs.stores.sqlite.codec import decode_datetime, decode_metadata
-from snapshotfs.stores.sqlite.contract import validate_schema_contract
-from snapshotfs.stores.sqlite.errors import (
+from snapshotfs.store.sqlite.codec import decode_datetime, decode_metadata
+from snapshotfs.store.sqlite.contract import validate_schema_contract
+from snapshotfs.store.sqlite.errors import (
     SQLiteSchemaError,
     SQLiteStoreClosedError,
     SQLiteStoreError,
 )
-from snapshotfs.stores.sqlite.schema import APPLICATION_ID, SCHEMA_VERSION, configure
-from snapshotfs.stores.sqlite.validation import validate_records
+from snapshotfs.store.sqlite.schema import APPLICATION_ID, SCHEMA_VERSION, configure
+from snapshotfs.store.sqlite.validation import validate_records
 
 
 class SQLiteSnapshotStore:

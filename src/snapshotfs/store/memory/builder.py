@@ -5,14 +5,14 @@ from types import MappingProxyType
 
 from snapshotfs.diagnostics import ImportDiagnostic
 from snapshotfs.model import Node, NodeKind, ParsedEntry, Snapshot
-from snapshotfs.stores.building import (
+from snapshotfs.store.building import (
     MutableNode,
     components,
     conflict,
     content_values,
     merge,
 )
-from snapshotfs.stores.memory.store import InMemorySnapshotStore
+from snapshotfs.store.memory.store import InMemorySnapshotStore
 
 
 class InMemorySnapshotBuilder:

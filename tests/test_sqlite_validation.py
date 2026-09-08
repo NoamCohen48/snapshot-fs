@@ -7,12 +7,12 @@ import pytest
 from snapshotfs.cli import main
 from snapshotfs.diagnostics import ImportDiagnostic, Severity
 from snapshotfs.model import NodeKind, Observation, ParsedEntry, Snapshot
-from snapshotfs.stores.sqlite import (
+from snapshotfs.store.sqlite import (
     SQLiteSchemaError,
     SQLiteSnapshotBuilder,
     open_sqlite_store,
 )
-from snapshotfs.stores.sqlite.schema import SCHEMA
+from snapshotfs.store.sqlite.schema import SCHEMA
 
 
 def create_artifact(path: Path, *, diagnostic: bool = False) -> None:

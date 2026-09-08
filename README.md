@@ -116,12 +116,10 @@ Compose a source and parser explicitly, create a snapshot, then mount it. This
 requires Linux and the `fuse` extra:
 
 ```python
-from snapshotfs import (
-    FileSource,
-    WindowsDirParser,
-    create_memory_store,
-    mount_store,
-)
+from snapshotfs.fuse import mount_store
+from snapshotfs.parser import WindowsDirParser
+from snapshotfs.source import FileSource
+from snapshotfs.store.memory import create_memory_store
 
 source = FileSource("listing.txt")
 parser = WindowsDirParser(encoding="cp1252", date_format="mdy")

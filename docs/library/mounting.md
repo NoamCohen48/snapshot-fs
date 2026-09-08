@@ -5,7 +5,8 @@
 `mount_store()` exposes an already imported store as a read-only filesystem:
 
 ```python
-from snapshotfs import mount_store, open_sqlite_store
+from snapshotfs.fuse import mount_store
+from snapshotfs.store.sqlite import open_sqlite_store
 
 with open_sqlite_store("backup.snapshot") as store:
     mount_store(store, "/tmp/snapshotfs")

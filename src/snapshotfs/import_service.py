@@ -3,20 +3,15 @@
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Protocol
 from uuid import uuid4
 
 from snapshotfs.diagnostics import MAX_DIAGNOSTICS, ImportDiagnostic, Severity
 from snapshotfs.model import ParsedEntry, Snapshot
-from snapshotfs.parsers.base import Parser
-from snapshotfs.sources.base import Source
-from snapshotfs.stores.memory import (
-    BuildError,
-    InMemorySnapshotBuilder,
-    InMemorySnapshotStore,
-)
-from snapshotfs.stores.sqlite import SQLiteSnapshotBuilder, SQLiteSnapshotStore
+from snapshotfs.parser import Parser
+from snapshotfs.source import Source
+from snapshotfs.store.base import ImportFailure
+from snapshotfs.store.building import BuildError
 
 
 class SnapshotBuilder[StoreT](Protocol):
@@ -29,39 +24,6 @@ class SnapshotBuilder[StoreT](Protocol):
     ) -> StoreT: ...
 
     def abort(self) -> None: ...
-
-
-class ImportFailure(ValueError):
-    def __init__(
-        self,
-        diagnostics: tuple[ImportDiagnostic, ...],
-        diagnostic_count: int | None = None,
-    ) -> None:
-        self.diagnostics = diagnostics
-        self.diagnostic_count = (
-            diagnostic_count if diagnostic_count is not None else len(diagnostics)
-        )
-        super().__init__(diagnostics[0].message if diagnostics else "import failed")
-
-
-def create_memory_store(source: Source, parser: Parser) -> InMemorySnapshotStore:
-    return _create_store(source, parser, InMemorySnapshotBuilder)
-
-
-def create_sqlite_store(
-    source: Source,
-    parser: Parser,
-    destination: str | Path,
-    *,
-    overwrite: bool = False,
-) -> SQLiteSnapshotStore:
-    return _create_store(
-        source,
-        parser,
-        lambda snapshot: SQLiteSnapshotBuilder(
-            snapshot, destination, overwrite=overwrite
-        ),
-    )
 
 
 def _create_store[StoreT](

@@ -3,13 +3,12 @@
 [Python library](index.md)
 
 ```python
-from snapshotfs import (
-    FileSource,
-    ImportFailure,
+from snapshotfs.parser import WindowsDirParser
+from snapshotfs.source import FileSource, SourceError
+from snapshotfs.store import ImportFailure
+from snapshotfs.store.sqlite import (
     SQLiteDestinationExistsError,
     SQLitePersistenceError,
-    SourceError,
-    WindowsDirParser,
     create_sqlite_store,
 )
 

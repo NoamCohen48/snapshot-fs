@@ -7,8 +7,8 @@ from typing import BinaryIO
 from snapshotfs.decoding import DecodeError, iter_decoded_lines
 from snapshotfs.diagnostics import DiagnosticCollector
 from snapshotfs.model import NodeKind, Observation, ParsedEntry
-from snapshotfs.parsers.base import ParseResult
-from snapshotfs.parsers.windows_dir.grammar import (
+from snapshotfs.parser.base import ParseResult
+from snapshotfs.parser.windows_dir.grammar import (
     DateFormat,
     dir_summary,
     file_summary,
@@ -19,8 +19,8 @@ from snapshotfs.parsers.windows_dir.grammar import (
     resembles_entry,
     valid_section_path,
 )
-from snapshotfs.parsers.windows_dir.paths import to_mounted_path
-from snapshotfs.parsers.windows_dir.state import AggregateState, SectionState
+from snapshotfs.parser.windows_dir.paths import to_mounted_path
+from snapshotfs.parser.windows_dir.state import AggregateState, SectionState
 
 
 class WindowsDirParser:

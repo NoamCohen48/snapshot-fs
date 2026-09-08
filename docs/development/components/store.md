@@ -8,7 +8,7 @@ successful import.
 
 ## Contract
 
-`SnapshotStore` in `snapshotfs.stores.base` provides the lookup and traversal
+`SnapshotStore` in `snapshotfs.store` provides the lookup and traversal
 operations shared by storage backends:
 
 ```python

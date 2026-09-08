@@ -7,9 +7,9 @@ from typing import Never
 
 from snapshotfs.diagnostics import Severity
 from snapshotfs.model import ContentStatus, NodeKind, Observation
-from snapshotfs.stores.building import MAX_MOUNTED_NAME_BYTES
-from snapshotfs.stores.sqlite.codec import decode_datetime, decode_metadata
-from snapshotfs.stores.sqlite.errors import SQLiteSchemaError
+from snapshotfs.store.building import MAX_MOUNTED_NAME_BYTES
+from snapshotfs.store.sqlite.codec import decode_datetime, decode_metadata
+from snapshotfs.store.sqlite.errors import SQLiteSchemaError
 
 
 def validate_records(connection: sqlite3.Connection, path: Path) -> None:

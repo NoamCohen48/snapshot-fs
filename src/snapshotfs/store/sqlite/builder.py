@@ -6,27 +6,27 @@ from pathlib import Path
 
 from snapshotfs.diagnostics import ImportDiagnostic
 from snapshotfs.model import ContentStatus, NodeKind, Observation, ParsedEntry, Snapshot
-from snapshotfs.stores.building import (
+from snapshotfs.store.building import (
     MutableNode,
     components,
     conflict,
     entry_location,
     merge,
 )
-from snapshotfs.stores.sqlite.artifact import cleanup, create_temporary, publish
-from snapshotfs.stores.sqlite.codec import (
+from snapshotfs.store.sqlite.artifact import cleanup, create_temporary, publish
+from snapshotfs.store.sqlite.codec import (
     decode_datetime,
     decode_metadata,
     encode_datetime,
     encode_metadata,
 )
-from snapshotfs.stores.sqlite.errors import (
+from snapshotfs.store.sqlite.errors import (
     SQLiteDestinationExistsError,
     SQLitePersistenceError,
     SQLiteSchemaError,
 )
-from snapshotfs.stores.sqlite.schema import configure, create_schema
-from snapshotfs.stores.sqlite.store import SQLiteSnapshotStore
+from snapshotfs.store.sqlite.schema import configure, create_schema
+from snapshotfs.store.sqlite.store import SQLiteSnapshotStore
 
 
 class SQLiteSnapshotBuilder:

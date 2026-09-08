@@ -3,28 +3,22 @@ from pathlib import Path
 import pytest
 
 import snapshotfs
-import snapshotfs.api as api
+import snapshotfs.fuse as fuse
+from snapshotfs.parser import WindowsDirParser
+from snapshotfs.source import FileSource
+from snapshotfs.store.memory import create_memory_store
 
 
-def test_public_library_api_uses_explicit_store_operations() -> None:
+def test_top_level_package_does_not_flatten_component_apis() -> None:
     for name in (
+        "FileSource",
+        "WindowsDirParser",
         "create_memory_store",
         "create_sqlite_store",
         "open_sqlite_store",
         "mount_store",
-        "NodeKind",
-        "Observation",
     ):
-        assert hasattr(snapshotfs, name)
-    removed_names = (
-        "import_snapshot",
-        "import_snapshot_sqlite",
-        "open_snapshot",
-        "mount",
-        "ParsedPath",
-    )
-    for removed in removed_names:
-        assert not hasattr(snapshotfs, removed)
+        assert not hasattr(snapshotfs, name)
 
 
 def test_public_library_api_mounts_explicit_store(
@@ -45,15 +39,8 @@ def test_public_library_api_mounts_explicit_store(
         )
 
     monkeypatch.setattr(adapter, "mount_snapshot", fake_mount)
-    store = snapshotfs.create_memory_store(
-        snapshotfs.FileSource(listing_file),
-        snapshotfs.WindowsDirParser(),
-    )
-    snapshotfs.mount_store(
-        store,
-        mountpoint,
-        simulate_missing_content=True,
-    )
+    store = create_memory_store(FileSource(listing_file), WindowsDirParser())
+    fuse.mount_store(store, mountpoint, simulate_missing_content=True)
 
     assert called["path"] == str(mountpoint)
     assert called["simulate_missing_content"] is True
@@ -62,10 +49,7 @@ def test_public_library_api_mounts_explicit_store(
 def test_public_library_api_can_create_store_without_mounting(
     listing_file: Path,
 ) -> None:
-    store = snapshotfs.create_memory_store(
-        snapshotfs.FileSource(listing_file),
-        snapshotfs.WindowsDirParser(),
-    )
+    store = create_memory_store(FileSource(listing_file), WindowsDirParser())
     assert list(store.iter_nodes())
 
 
@@ -73,18 +57,16 @@ def test_public_library_api_can_create_store_without_mounting(
 def test_mount_wraps_only_missing_optional_dependencies(
     listing_file: Path, monkeypatch, dependency: str
 ) -> None:
-    store = snapshotfs.create_memory_store(
-        snapshotfs.FileSource(listing_file), snapshotfs.WindowsDirParser()
-    )
+    store = create_memory_store(FileSource(listing_file), WindowsDirParser())
     missing = ModuleNotFoundError(name=dependency)
 
     def fail_import(name: str) -> object:
         del name
         raise missing
 
-    monkeypatch.setattr(api, "import_module", fail_import)
-    with pytest.raises(snapshotfs.FuseUnavailableError) as caught:
-        snapshotfs.mount_store(store, "/unused")
+    monkeypatch.setattr(fuse, "import_module", fail_import)
+    with pytest.raises(fuse.FuseUnavailableError) as caught:
+        fuse.mount_store(store, "/unused")
     assert caught.value.__cause__ is missing
 
 
@@ -98,15 +80,13 @@ def test_mount_wraps_only_missing_optional_dependencies(
 def test_mount_propagates_internal_import_errors(
     listing_file: Path, monkeypatch, error: ImportError
 ) -> None:
-    store = snapshotfs.create_memory_store(
-        snapshotfs.FileSource(listing_file), snapshotfs.WindowsDirParser()
-    )
+    store = create_memory_store(FileSource(listing_file), WindowsDirParser())
 
     def fail_import(name: str) -> object:
         del name
         raise error
 
-    monkeypatch.setattr(api, "import_module", fail_import)
+    monkeypatch.setattr(fuse, "import_module", fail_import)
     with pytest.raises(type(error)) as caught:
-        snapshotfs.mount_store(store, "/unused")
+        fuse.mount_store(store, "/unused")
     assert caught.value is error

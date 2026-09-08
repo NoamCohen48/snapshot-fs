@@ -2,7 +2,7 @@
 
 [Python library](index.md)
 
-Both built-in backends implement `snapshotfs.stores.SnapshotStore`:
+Both built-in backends implement `snapshotfs.store.SnapshotStore`:
 
 ```python
 root = store.get_node(1)
@@ -37,7 +37,7 @@ its lifetime.
 SQLite stores hold a database connection and should be used as context managers:
 
 ```python
-from snapshotfs import open_sqlite_store
+from snapshotfs.store.sqlite import open_sqlite_store
 
 with open_sqlite_store("backup.snapshot") as store:
     nodes = tuple(store.iter_nodes())

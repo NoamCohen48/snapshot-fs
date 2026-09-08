@@ -7,7 +7,7 @@ from typing import Any
 from snapshotfs.diagnostics import ImportDiagnostic
 from snapshotfs.model import Node
 from snapshotfs.model.metadata import thaw_metadata
-from snapshotfs.stores.base import SnapshotStore
+from snapshotfs.store import SnapshotStore
 
 
 def print_tree(store: SnapshotStore) -> None:

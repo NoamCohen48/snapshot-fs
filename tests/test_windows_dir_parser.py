@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from snapshotfs.model import NodeKind, Observation
-from snapshotfs.parsers.windows_dir import WindowsDirParser
+from snapshotfs.parser import WindowsDirParser
 
 
 def parse(text: str, date_format: str = "mdy", encoding: str = "utf-8"):

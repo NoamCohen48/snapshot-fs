@@ -6,10 +6,8 @@ from typing import Any, TypeVar
 
 import click
 
-from snapshotfs.parsers.base import Parser
-from snapshotfs.parsers.windows_dir import DateFormat, WindowsDirParser
-from snapshotfs.sources.base import Source
-from snapshotfs.sources.file import FileSource
+from snapshotfs.parser import DateFormat, Parser, WindowsDirParser
+from snapshotfs.source import FileSource, Source
 
 ENCODING_COMPLETIONS = (
     "utf-8",

@@ -407,7 +407,7 @@ tests. Users enable Bash, Zsh, or Fish completion with
 `sqlite show` and `sqlite mount` consume an existing artifact without source or
 parser selection. All CLI paths close SQLite stores on normal return, mount
 failure, and interruption. `memory mount` creates a transient store from
-registry-created components, passes it to `snapshotfs.api.mount_store`, and
+registry-created components, passes it to `snapshotfs.fuse.mount_store`, and
 runs until interrupted.
 pyfuse3 and Trio are Linux-only dependencies in the optional `fuse` extra;
 pyfuse3 requires system libfuse 3 development headers to build. Parsing and
@@ -416,18 +416,15 @@ because the CLI imports the FUSE adapter only for `mount`.
 
 ## Library API
 
-The package exports the source and parser protocols, built-in implementations,
-explicit store creators, and `mount_store`. pyfuse3 remains lazily imported:
+The package exposes source, parser, store, model, and FUSE modules. pyfuse3
+remains lazily imported:
 
 ```python
-from snapshotfs import (
-    FileSource,
-    WindowsDirParser,
-    create_memory_store,
-    create_sqlite_store,
-    mount_store,
-    open_sqlite_store,
-)
+from snapshotfs.fuse import mount_store
+from snapshotfs.parser import WindowsDirParser
+from snapshotfs.source import FileSource
+from snapshotfs.store.memory import create_memory_store
+from snapshotfs.store.sqlite import create_sqlite_store, open_sqlite_store
 
 source = FileSource("listing.txt")
 parser = WindowsDirParser(encoding="cp1252", date_format="mdy")

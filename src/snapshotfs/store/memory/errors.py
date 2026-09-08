@@ -1,5 +1,5 @@
 """Compatibility export for snapshot build errors."""
 
-from snapshotfs.stores.building import BuildError
+from snapshotfs.store.building import BuildError
 
 __all__ = ["BuildError"]

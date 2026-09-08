@@ -7,7 +7,7 @@ normalized `ParsedEntry` values, and reports structured diagnostics.
 
 ## Contract
 
-Implement the `Parser` protocol from `snapshotfs.parsers.base`:
+Implement the `Parser` protocol from `snapshotfs.parser`:
 
 ```python
 class Parser(Protocol):

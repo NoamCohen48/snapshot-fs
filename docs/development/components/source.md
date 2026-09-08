@@ -7,7 +7,7 @@ not decode text or interpret listing syntax.
 
 ## Contract
 
-Implement the `Source` protocol from `snapshotfs.sources.base`:
+Implement the `Source` protocol from `snapshotfs.source`:
 
 ```python
 class Source(Protocol):

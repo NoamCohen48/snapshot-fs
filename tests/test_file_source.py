@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from snapshotfs.decoding import DecodeError, iter_decoded_lines
-from snapshotfs.sources.file import FileSource, SourceError
+from snapshotfs.source import FileSource, SourceError
 
 
 class ChunkedBytesIO(io.BytesIO):

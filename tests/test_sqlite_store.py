@@ -7,20 +7,21 @@ from typing import BinaryIO
 
 import pytest
 
-import snapshotfs.api as api
+import snapshotfs.cli as cli
 from snapshotfs.cli import main
 from snapshotfs.diagnostics import DiagnosticCollector, ImportDiagnostic, Severity
-from snapshotfs.import_service import ImportFailure, create_sqlite_store
 from snapshotfs.model import NodeKind, Observation, ParsedEntry, Snapshot
-from snapshotfs.parsers.base import ParseResult
-from snapshotfs.parsers.windows_dir.paths import to_mounted_path
-from snapshotfs.stores.memory import BuildError, InMemorySnapshotBuilder
-from snapshotfs.stores.sqlite import (
+from snapshotfs.parser import ParseResult
+from snapshotfs.parser.windows_dir.paths import to_mounted_path
+from snapshotfs.store import ImportFailure
+from snapshotfs.store.memory import BuildError, InMemorySnapshotBuilder
+from snapshotfs.store.sqlite import (
     SQLiteDestinationExistsError,
     SQLiteSchemaError,
     SQLiteSnapshotBuilder,
     SQLiteStoreClosedError,
     SQLiteStoreError,
+    create_sqlite_store,
     open_sqlite_store,
 )
 
@@ -320,7 +321,7 @@ def test_cli_create_show_and_mount_close(
         assert simulate_missing_content
         assert list(store.iter_nodes())
 
-    monkeypatch.setattr(api, "mount_store", fake_mount)
+    monkeypatch.setattr(cli, "mount_store", fake_mount)
     assert (
         main(
             [
@@ -352,7 +353,7 @@ def test_cli_create_can_mount_immediately_and_closes(
         assert simulate_missing_content
         assert list(store.iter_nodes())
 
-    monkeypatch.setattr(api, "mount_store", fake_mount)
+    monkeypatch.setattr(cli, "mount_store", fake_mount)
     assert (
         main(
             [

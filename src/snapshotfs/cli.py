@@ -8,7 +8,6 @@ from contextlib import closing
 import click
 from click.shell_completion import get_completion_class
 
-import snapshotfs.api as api
 from snapshotfs.cli_output import json_document, print_tree
 from snapshotfs.cli_registry import (
     CLIRegistry,
@@ -16,10 +15,12 @@ from snapshotfs.cli_registry import (
     StoreCLIRegistration,
     default_registry,
 )
-from snapshotfs.import_service import ImportFailure
-from snapshotfs.parsers.base import Parser
-from snapshotfs.sources import SourceError
-from snapshotfs.sources.base import Source
+from snapshotfs.fuse import FuseUnavailableError, mount_store
+from snapshotfs.parser import Parser
+from snapshotfs.source import Source, SourceError
+from snapshotfs.store import ImportFailure
+from snapshotfs.store.memory import create_memory_store
+from snapshotfs.store.sqlite import create_sqlite_store, open_sqlite_store
 
 
 def main(argv: Sequence[str] | None = None, registry: CLIRegistry | None = None) -> int:
@@ -49,7 +50,7 @@ def main(argv: Sequence[str] | None = None, registry: CLIRegistry | None = None)
     except SourceError as exc:
         click.echo(f"error: {exc}", err=True)
         return 1
-    except api.FuseUnavailableError:
+    except FuseUnavailableError:
         click.echo(
             "error: FUSE support is unavailable; install it with "
             "`uv sync --extra fuse`",
@@ -98,7 +99,7 @@ def _sqlite_commands(registry: CLIRegistry) -> click.Group:
         if mountpoint is None and arguments["simulate_missing_content"]:
             raise click.UsageError("--simulate-missing-content requires --mount")
         source, parser = _create_components(registry, arguments)
-        store = api.create_sqlite_store(
+        store = create_sqlite_store(
             source,
             parser,
             str(arguments["output"]),
@@ -108,7 +109,7 @@ def _sqlite_commands(registry: CLIRegistry) -> click.Group:
             store.close()
             return
         with closing(store):
-            api.mount_store(
+            mount_store(
                 store,
                 str(mountpoint),
                 simulate_missing_content=bool(arguments["simulate_missing_content"]),
@@ -145,8 +146,8 @@ def _sqlite_commands(registry: CLIRegistry) -> click.Group:
     def mount(
         snapshot: str, mountpoint: str, simulate_missing_content: bool
     ) -> None:
-        with api.open_sqlite_store(snapshot) as store:
-            api.mount_store(
+        with open_sqlite_store(snapshot) as store:
+            mount_store(
                 store,
                 mountpoint,
                 simulate_missing_content=simulate_missing_content,
@@ -156,7 +157,7 @@ def _sqlite_commands(registry: CLIRegistry) -> click.Group:
     @click.argument("snapshot", type=click.Path(path_type=str))
     @click.option("--json", "as_json", is_flag=True)
     def show(snapshot: str, as_json: bool) -> None:
-        with api.open_sqlite_store(snapshot) as store:
+        with open_sqlite_store(snapshot) as store:
             if as_json:
                 click.echo(
                     json.dumps(json_document(store), indent=2, ensure_ascii=False)
@@ -174,8 +175,8 @@ def _memory_commands(registry: CLIRegistry) -> click.Group:
 
     def mount(**arguments: object) -> None:
         source, parser = _create_components(registry, arguments)
-        store = api.create_memory_store(source, parser)
-        api.mount_store(
+        store = create_memory_store(source, parser)
+        mount_store(
             store,
             str(arguments["mountpoint"]),
             simulate_missing_content=bool(arguments["simulate_missing_content"]),

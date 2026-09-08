@@ -11,7 +11,7 @@ import pyfuse3  # type: ignore[import-not-found]
 from snapshotfs.fuse.adapter.read_only import ReadOnlyOperationsMixin
 from snapshotfs.fuse.policy import ContentReadError, read_node
 from snapshotfs.model import Node, NodeKind
-from snapshotfs.stores.base import SnapshotStore
+from snapshotfs.store import SnapshotStore
 
 CONTENT_STATUS_XATTR = b"user.snapshotfs.content_status"
 ATTRIBUTE_TIMEOUT = 300.0

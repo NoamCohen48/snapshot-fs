@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import pytest
 
 from snapshotfs.model import NodeKind, Observation, ParsedEntry, Snapshot
-from snapshotfs.stores.memory import InMemorySnapshotBuilder, InMemorySnapshotStore
+from snapshotfs.store.memory import InMemorySnapshotBuilder, InMemorySnapshotStore
 
 pyfuse3 = pytest.importorskip("pyfuse3")
 trio = pytest.importorskip("trio")

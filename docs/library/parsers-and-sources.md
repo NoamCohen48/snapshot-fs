@@ -8,7 +8,7 @@ A `Source` supplies a binary stream and provenance. It does not choose an
 encoding or interpret data.
 
 ```python
-from snapshotfs import FileSource
+from snapshotfs.source import FileSource
 
 source = FileSource("listing.txt")
 print(source.uri)
@@ -27,7 +27,8 @@ A `Parser` consumes a binary stream and returns a lazy, single-pass
 `ParseResult`. Diagnostics are populated as entries are consumed:
 
 ```python
-from snapshotfs import FileSource, WindowsDirParser
+from snapshotfs.parser import WindowsDirParser
+from snapshotfs.source import FileSource
 
 source = FileSource("listing.txt")
 parser = WindowsDirParser(encoding="cp1252", date_format="dmy")

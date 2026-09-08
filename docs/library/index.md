@@ -11,7 +11,9 @@ Source -> Parser -> import service -> SnapshotStore -> optional FUSE mount
 Create a source and parser, then choose an in-memory or SQLite-backed store:
 
 ```python
-from snapshotfs import FileSource, WindowsDirParser, create_memory_store
+from snapshotfs.parser import WindowsDirParser
+from snapshotfs.source import FileSource
+from snapshotfs.store.memory import create_memory_store
 
 source = FileSource("listing.txt")
 parser = WindowsDirParser(encoding="cp1252", date_format="mdy")
@@ -21,9 +23,10 @@ for node in store.iter_nodes():
     print(node.id, node.mounted_name, node.kind)
 ```
 
-Import from `snapshotfs` for the primary public API. Specialized contracts are
-available from `snapshotfs.model`, `snapshotfs.parsers`, `snapshotfs.sources`,
-and `snapshotfs.stores`.
+Import from the module that owns each component: `snapshotfs.source`,
+`snapshotfs.parser`, `snapshotfs.store.memory`, `snapshotfs.store.sqlite`,
+`snapshotfs.model`, or `snapshotfs.fuse`. The top-level package does not flatten
+these APIs into one namespace.
 
 ## Guides
 

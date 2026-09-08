@@ -40,9 +40,9 @@ src/snapshotfs/
   cli_registry.py        CLI component registrations
   import_service.py      Import orchestration
   model/                 Immutable domain objects
-  sources/               Input acquisition components
-  parsers/               Input-format components
-  stores/                Snapshot backends and builders
+  source/                Input acquisition components
+  parser/                Input-format components
+  store/                 Snapshot backends and builders
   fuse/adapter/          Read-only filesystem adapter
 tests/                   Unit and integration tests
 ```

@@ -6,8 +6,8 @@ from threading import Barrier
 import pytest
 
 from snapshotfs.model import NodeKind, Observation, ParsedEntry, Snapshot
-from snapshotfs.stores.memory import InMemorySnapshotBuilder
-from snapshotfs.stores.sqlite import (
+from snapshotfs.store.memory import InMemorySnapshotBuilder
+from snapshotfs.store.sqlite import (
     SQLiteSnapshotBuilder,
     SQLiteStoreClosedError,
 )

@@ -79,15 +79,17 @@ it is kept separate from the deterministic build.
 `snapshotfs` package. The page wraps the reStructuredText autodoc directive in a
 MyST `eval-rst` fence; narrative content around it remains ordinary Markdown.
 
-The top-level `snapshotfs.__all__` list is the canonical public API and is also
-checked by package-export tests. Prefer documenting that surface rather than
-automatically exposing implementation modules. Public signatures and docstrings
-therefore serve both code users and the generated reference.
+The `__all__` lists in `snapshotfs.source`, `snapshotfs.parser`,
+`snapshotfs.store`, its backend modules, `snapshotfs.model`, and
+`snapshotfs.fuse` are the canonical public API and are checked by package-export
+tests. Prefer documenting those surfaces rather than exposing implementation
+modules. Public signatures and docstrings therefore serve both code users and
+the generated reference.
 
-Autodoc imports `snapshotfs` during a build. The top-level package intentionally
-loads the FUSE adapter lazily, so API documentation does not require the optional
-Linux FUSE dependencies. Keep optional or platform-specific imports out of the
-top-level import path unless they degrade safely.
+Autodoc imports the public modules during a build. `snapshotfs.fuse` loads its
+adapter lazily, so API documentation does not require the optional Linux FUSE
+dependencies. Keep optional or platform-specific imports out of public import
+paths unless they degrade safely.
 
 After changing an exported signature or docstring, rebuild the site and inspect
 the corresponding entry in `docs/_build/html/reference/api.html`.

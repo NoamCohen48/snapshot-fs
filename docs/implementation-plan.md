@@ -73,26 +73,26 @@ src/snapshotfs/
     node.py
     parsed_entry.py
     snapshot.py
-  sources/
+  source/
     __init__.py
     base.py
     file.py
-  parsers/
+  parser/
     __init__.py
     base.py
     windows_dir/
       __init__.py
       grammar.py
       parser.py
+      paths.py
       state.py
-  stores/
+  store/
     __init__.py
     base.py
     memory/
       __init__.py
       builder.py
       errors.py
-      paths.py
       store.py
     sqlite/
       __init__.py

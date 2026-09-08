@@ -2,16 +2,15 @@
 
 [Documentation](../index.md)
 
-The primary API is exported from `snapshotfs`. The generated reference below
-uses that tested export surface rather than documenting implementation modules.
+The public API is divided by responsibility. Import sources, parsers, store
+backends, models, and mounting operations from their corresponding modules.
 
 ## Composition
 
 ```python
-create_memory_store(source, parser)
-create_sqlite_store(source, parser, destination, *, overwrite=False)
-open_sqlite_store(path)
-mount_store(store, mountpoint, *, simulate_missing_content=False)
+from snapshotfs.fuse import mount_store
+from snapshotfs.store.memory import create_memory_store
+from snapshotfs.store.sqlite import create_sqlite_store, open_sqlite_store
 ```
 
 `create_memory_store()` returns an `InMemorySnapshotStore`.
@@ -21,30 +20,80 @@ mount_store(store, mountpoint, *, simulate_missing_content=False)
 ## Store Protocol
 
 The backend-neutral `SnapshotStore` protocol is exported from
-`snapshotfs.stores`. Its lookup names are bytes:
+`snapshotfs.store`. Its lookup names are bytes:
 
 ```python
-from snapshotfs.stores import SnapshotStore
+from snapshotfs.store import SnapshotStore
 
 node = store.lookup(parent_inode=1, name=b"C")
 ```
 
-## Public Package
-
 ```{eval-rst}
-.. automodule:: snapshotfs
+.. automodule:: snapshotfs.store
    :members:
    :imported-members:
    :undoc-members:
    :member-order: bysource
 ```
 
-## Secondary Modules
+## Sources
 
-The extension contracts and less common types are exported from:
+```{eval-rst}
+.. automodule:: snapshotfs.source
+   :members:
+   :imported-members:
+   :undoc-members:
+   :member-order: bysource
+```
 
-- `snapshotfs.model`, including `ContentStatus`;
-- `snapshotfs.parsers`, including `ParseResult`;
-- `snapshotfs.sources`;
-- `snapshotfs.stores`, including memory-store and builder types;
-- `snapshotfs.cli_registry`, for programmatic CLI extensions.
+## Parsers
+
+```{eval-rst}
+.. automodule:: snapshotfs.parser
+   :members:
+   :imported-members:
+   :undoc-members:
+   :member-order: bysource
+```
+
+## Memory Stores
+
+```{eval-rst}
+.. automodule:: snapshotfs.store.memory
+   :members:
+   :imported-members:
+   :undoc-members:
+   :member-order: bysource
+```
+
+## SQLite Stores
+
+```{eval-rst}
+.. automodule:: snapshotfs.store.sqlite
+   :members:
+   :imported-members:
+   :undoc-members:
+   :member-order: bysource
+```
+
+## Mounting
+
+```{eval-rst}
+.. automodule:: snapshotfs.fuse
+   :members: FuseUnavailableError, mount_store
+   :imported-members:
+   :undoc-members:
+   :member-order: bysource
+```
+
+## Models
+
+```{eval-rst}
+.. automodule:: snapshotfs.model
+   :members:
+   :imported-members:
+   :undoc-members:
+   :member-order: bysource
+```
+
+The programmatic CLI extension API remains in `snapshotfs.cli_registry`.

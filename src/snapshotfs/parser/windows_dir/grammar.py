@@ -7,7 +7,7 @@ from pathlib import PureWindowsPath
 
 from snapshotfs.diagnostics import DiagnosticCollector
 from snapshotfs.model import NodeKind, Observation, ParsedEntry
-from snapshotfs.parsers.windows_dir.paths import to_mounted_path
+from snapshotfs.parser.windows_dir.paths import to_mounted_path
 
 _HEADER = re.compile(r"^\s*Directory of\s+(.+?)\s*$")
 _ENTRY = re.compile(

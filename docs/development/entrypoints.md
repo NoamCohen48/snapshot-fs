@@ -27,18 +27,27 @@ independent of Click; only their CLI adapters construct command groups.
 
 ## Library API
 
-`snapshotfs.api` contains the public composition functions and re-exports them
-from `snapshotfs`:
+The public library API is grouped by responsibility rather than re-exported from
+the top-level `snapshotfs` package:
 
-- `create_memory_store(source, parser)` imports a transient snapshot.
-- `create_sqlite_store(source, parser, destination)` imports a persistent
+- `snapshotfs.source` exports source contracts and `FileSource`.
+- `snapshotfs.parser` exports parser contracts and `WindowsDirParser`.
+- `snapshotfs.store` exports the backend-neutral store contract and import
+  failure type.
+- `snapshotfs.store.memory.create_memory_store(source, parser)` imports a
+  transient snapshot.
+- `snapshotfs.store.sqlite.create_sqlite_store(source, parser, destination)`
+  imports a persistent
   snapshot artifact.
-- `open_sqlite_store(destination)` opens a persistent artifact.
-- `mount_store(store, mountpoint)` mounts an already imported snapshot.
+- `snapshotfs.store.sqlite.open_sqlite_store(destination)` opens a persistent
+  artifact.
+- `snapshotfs.fuse.mount_store(store, mountpoint)` mounts an already imported
+  snapshot.
 
-Keep new public composition operations in `api.py`. Avoid importing optional
-adapter dependencies at package import time; `mount_store` loads the adapter
-lazily and reports a clear error when it is unavailable.
+Keep new public operations in the module for the component that owns them. Avoid
+importing optional adapter dependencies at package import time;
+`snapshotfs.fuse.mount_store` loads the adapter lazily and reports a clear error
+when it is unavailable.
 
 ## CLI Components
 

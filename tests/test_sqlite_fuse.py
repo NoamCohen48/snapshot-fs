@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from snapshotfs.model import NodeKind, Observation, ParsedEntry, Snapshot
-from snapshotfs.stores.sqlite import SQLiteSnapshotBuilder
+from snapshotfs.store.sqlite import SQLiteSnapshotBuilder
 
 pyfuse3 = pytest.importorskip("pyfuse3")
 trio = pytest.importorskip("trio")

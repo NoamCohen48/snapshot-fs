@@ -9,15 +9,15 @@ from typing import BinaryIO
 
 import pytest
 
-import snapshotfs.stores.sqlite.artifact as artifact
-from snapshotfs.import_service import create_sqlite_store
+import snapshotfs.store.sqlite.artifact as artifact
 from snapshotfs.model import NodeKind, Observation, ParsedEntry, Snapshot
-from snapshotfs.parsers.base import ParseResult
-from snapshotfs.stores.sqlite import (
+from snapshotfs.parser import ParseResult
+from snapshotfs.store.sqlite import (
     SQLiteDestinationExistsError,
     SQLiteDurabilityError,
     SQLitePublicationError,
     SQLiteSnapshotBuilder,
+    create_sqlite_store,
     open_sqlite_store,
 )
 

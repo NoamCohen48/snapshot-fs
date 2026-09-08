@@ -4,7 +4,7 @@ import pyfuse3  # type: ignore[import-not-found]
 import trio  # type: ignore[import-not-found]
 
 from snapshotfs.fuse.adapter.operations import SnapshotOperations
-from snapshotfs.stores.base import SnapshotStore
+from snapshotfs.store import SnapshotStore
 
 
 def mount_snapshot(

@@ -5,7 +5,7 @@ import tempfile
 from contextlib import suppress
 from pathlib import Path
 
-from snapshotfs.stores.sqlite.errors import (
+from snapshotfs.store.sqlite.errors import (
     SQLiteDestinationExistsError,
     SQLiteDurabilityError,
     SQLitePersistenceError,

@@ -10,7 +10,7 @@ from typing import BinaryIO
 import click
 import pytest
 
-import snapshotfs.api as api
+import snapshotfs.cli as cli
 from snapshotfs.cli import main
 from snapshotfs.cli_registry import (
     CLIRegistry,
@@ -18,7 +18,7 @@ from snapshotfs.cli_registry import (
     SourceRegistration,
 )
 from snapshotfs.diagnostics import DiagnosticCollector
-from snapshotfs.parsers.base import ParseResult
+from snapshotfs.parser import ParseResult
 
 
 class MemorySource:
@@ -169,8 +169,8 @@ def test_memory_mount_creates_store_then_mounts_it(tmp_path: Path, monkeypatch) 
         sources=[SourceRegistration("test", lambda _arguments: source)],
         parsers=[ParserRegistration("empty", lambda _arguments: parser)],
     )
-    monkeypatch.setattr(api, "create_memory_store", fake_create_memory_store)
-    monkeypatch.setattr(api, "mount_store", fake_mount_store)
+    monkeypatch.setattr(cli, "create_memory_store", fake_create_memory_store)
+    monkeypatch.setattr(cli, "mount_store", fake_mount_store)
     mountpoint = tmp_path / "mount"
     assert (
         main(
@@ -336,7 +336,7 @@ def test_custom_component_parameters_are_installed_only_when_selected(
             )
         ],
     )
-    monkeypatch.setattr(api, "mount_store", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(cli, "mount_store", lambda *_args, **_kwargs: None)
     assert (
         main(
             [

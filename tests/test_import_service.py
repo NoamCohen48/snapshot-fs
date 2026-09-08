@@ -5,11 +5,6 @@ from typing import BinaryIO
 import pytest
 
 from snapshotfs.diagnostics import DiagnosticCollector
-from snapshotfs.import_service import (
-    ImportFailure,
-    create_memory_store,
-    create_sqlite_store,
-)
 from snapshotfs.model import (
     ContentStatus,
     NodeKind,
@@ -17,11 +12,16 @@ from snapshotfs.model import (
     ParsedEntry,
     Snapshot,
 )
-from snapshotfs.parsers.base import ParseResult
-from snapshotfs.parsers.windows_dir import WindowsDirParser
-from snapshotfs.parsers.windows_dir.paths import to_mounted_path
-from snapshotfs.sources.file import FileSource
-from snapshotfs.stores.memory import BuildError, InMemorySnapshotBuilder
+from snapshotfs.parser import ParseResult, WindowsDirParser
+from snapshotfs.parser.windows_dir.paths import to_mounted_path
+from snapshotfs.source import FileSource
+from snapshotfs.store import ImportFailure
+from snapshotfs.store.memory import (
+    BuildError,
+    InMemorySnapshotBuilder,
+    create_memory_store,
+)
+from snapshotfs.store.sqlite import create_sqlite_store
 
 
 def import_text(tmp_path: Path, text: str):

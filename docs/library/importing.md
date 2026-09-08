@@ -5,7 +5,9 @@
 ## Memory Store
 
 ```python
-from snapshotfs import FileSource, WindowsDirParser, create_memory_store
+from snapshotfs.parser import WindowsDirParser
+from snapshotfs.source import FileSource
+from snapshotfs.store.memory import create_memory_store
 
 store = create_memory_store(
     FileSource("listing.txt"),
@@ -18,7 +20,9 @@ The returned `InMemorySnapshotStore` needs no explicit cleanup.
 ## SQLite Store
 
 ```python
-from snapshotfs import FileSource, WindowsDirParser, create_sqlite_store
+from snapshotfs.parser import WindowsDirParser
+from snapshotfs.source import FileSource
+from snapshotfs.store.sqlite import create_sqlite_store
 
 with create_sqlite_store(
     FileSource("listing.txt"),

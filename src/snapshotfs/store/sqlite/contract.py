@@ -5,8 +5,8 @@ import sqlite3
 from pathlib import Path
 from typing import Never
 
-from snapshotfs.stores.sqlite.errors import SQLiteSchemaError
-from snapshotfs.stores.sqlite.schema import SCHEMA
+from snapshotfs.store.sqlite.errors import SQLiteSchemaError
+from snapshotfs.store.sqlite.schema import SCHEMA
 
 type Column = tuple[str, str, int, object, int, int]
 
