@@ -13,7 +13,7 @@ uv run --extra fuse snapshotfs memory mount /tmp/snapshotfs \
 ```
 
 The listing is parsed and validated before the mount becomes available. The
-store exists only for the lifetime of the command, and the command blocks until
+store exists only for the lifetime of the command, and in foreground mode the command blocks until
 the mount is interrupted or externally unmounted.
 
 Parser options follow the component selections:
@@ -28,3 +28,9 @@ uv run --extra fuse snapshotfs memory mount /tmp/snapshotfs \
 
 Use a [SQLite artifact](sqlite.md) when the import should be reusable or
 inspectable without mounting.
+
+Add `--background` to mount without holding the terminal, then run
+`snapshotfs unmount MOUNTPOINT` to stop it. The worker retains the in-memory
+store until unmount; no persistent artifact is created. The command returns
+only after readiness and reports startup errors. `--foreground` is the default.
+See [mount modes](sqlite.md#three-mount-modes) for lifecycle and timeout details.

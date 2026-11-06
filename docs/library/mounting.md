@@ -27,3 +27,11 @@ content state through the `user.snapshotfs.content_status` extended attribute.
 Pass `simulate_missing_content=True` only when zero-filled stand-in data is
 acceptable. The [missing content guide](../concepts/missing-content.md) explains
 which files are simulated and why the default is `ENODATA`.
+
+
+The CLI additionally supports detached `--background` mounts with
+`snapshotfs unmount PATH`, and `snapshotfs run ARTIFACT -- COMMAND` for a
+temporary command-scoped mount. These process-managed modes reopen artifacts or
+reimport listings in an independent worker. The SDK `mount_store()` remains a
+foreground API for an already constructed store, including custom stores and
+registries; it does not fork a live SQLite connection.

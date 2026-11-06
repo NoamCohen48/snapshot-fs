@@ -1,9 +1,11 @@
 """SnapshotFS command-line interface."""
 
 import json
+import os
 import sys
 from collections.abc import Mapping, Sequence
 from contextlib import closing
+from pathlib import Path
 
 import click
 from click.shell_completion import get_completion_class
@@ -18,6 +20,7 @@ from snapshotfs.cli_registry import (
 from snapshotfs.doctor import doctor_command
 from snapshotfs.fuse import FuseUnavailableError, mount_store
 from snapshotfs.logging_setup import LoggingSession, logger, package_version
+from snapshotfs.mount_session import WORKER_ENV, run_mounted, start_background, unmount
 from snapshotfs.parser import Parser
 from snapshotfs.source import Source, SourceError
 from snapshotfs.store import ImportFailure
@@ -28,6 +31,8 @@ from snapshotfs.store.sqlite import create_sqlite_store, open_sqlite_store
 def main(argv: Sequence[str] | None = None, registry: CLIRegistry | None = None) -> int:
     """Run the CLI and return its process exit status."""
     session = LoggingSession()
+    session.arguments = list(argv) if argv is not None else sys.argv[1:]
+    session.custom_registry = registry is not None
     try:
         status = _run(argv, registry, session)
         if status not in {0, 130} and session.path is not None:
@@ -65,6 +70,11 @@ def _run(
             hints.append(
                 "Set --encoding to the producer's encoding "
                 "(for example utf-8, cp1252, or utf-16)."
+            )
+        if "INVALID_LOCAL_TIME" in codes:
+            hints.append(
+                "Check --source-timezone. Repeated DST times require "
+                "--ambiguous-time earlier or later; nonexistent times are rejected."
             )
         if codes & {"INVALID_DATETIME", "INVALID_TIME", "MALFORMED_ENTRY"}:
             hints.append(
@@ -146,13 +156,18 @@ def build_cli(registry: CLIRegistry) -> click.Group:
             session = LoggingSession()
             context.call_on_close(session.close)
             context.obj = session
-        session.configure(verbose, log_file)
+        session.configure(verbose and os.environ.get(WORKER_ENV) != "1", log_file)
         logger.debug("Command: %s", context.invoked_subcommand)
 
     registrations = [*_builtin_stores(), *registry.stores]
     seen: set[str] = set()
     for registration in registrations:
-        if registration.name in seen or registration.name in {"completion", "doctor"}:
+        if registration.name in seen or registration.name in {
+            "completion",
+            "doctor",
+            "run",
+            "unmount",
+        }:
             raise RegistryError(
                 f"duplicate or reserved store registration name {registration.name!r}"
             )
@@ -160,6 +175,8 @@ def build_cli(registry: CLIRegistry) -> click.Group:
         root.add_command(registration.command_factory(registry), registration.name)
     root.add_command(_completion_command())
     root.add_command(doctor_command())
+    root.add_command(_unmount_command())
+    root.add_command(_run_command())
     return root
 
 
@@ -177,6 +194,10 @@ def _sqlite_commands(registry: CLIRegistry) -> click.Group:
         mountpoint = arguments["mount"]
         if mountpoint is None and arguments["simulate_missing_content"]:
             raise click.UsageError("--simulate-missing-content requires --mount")
+        if arguments["background"] and mountpoint is None:
+            raise click.UsageError("--background requires --mount")
+        if mountpoint is not None and _background_requested(arguments, str(mountpoint)):
+            return
         source, parser = _create_components(registry, arguments)
         logger.info(
             "Creating SQLite snapshot %s (overwrite=%s)",
@@ -215,6 +236,7 @@ def _sqlite_commands(registry: CLIRegistry) -> click.Group:
                     help="Mount the new store immediately at this path.",
                 ),
                 _simulate_option(),
+                *_mount_mode_options(),
             ],
         )
     )
@@ -227,7 +249,31 @@ def _sqlite_commands(registry: CLIRegistry) -> click.Group:
         is_flag=True,
         help="Return NUL stand-ins for declared missing file content.",
     )
-    def mount(snapshot: str, mountpoint: str, simulate_missing_content: bool) -> None:
+    @click.option(
+        "--background/--foreground",
+        default=False,
+        help="Detach after readiness; foreground is the default.",
+    )
+    @click.option(
+        "--startup-timeout",
+        type=click.FloatRange(min=0, min_open=True),
+        default=120.0,
+        show_default=True,
+    )
+    def mount(
+        snapshot: str,
+        mountpoint: str,
+        simulate_missing_content: bool,
+        background: bool,
+        startup_timeout: float,
+    ) -> None:
+        if _background_requested(
+            {"background": background, "startup_timeout": startup_timeout}, mountpoint
+        ):
+            return
+        logger.info(
+            "Opening SQLite snapshot %s for mounting at %s", snapshot, mountpoint
+        )
         with open_sqlite_store(snapshot) as store:
             mount_store(
                 store,
@@ -257,6 +303,8 @@ def _memory_commands(registry: CLIRegistry) -> click.Group:
     group = click.Group(name="memory", help="Build transient in-memory stores.")
 
     def mount(**arguments: object) -> None:
+        if _background_requested(arguments, str(arguments["mountpoint"])):
+            return
         source, parser = _create_components(registry, arguments)
         store = create_memory_store(source, parser)
         mount_store(
@@ -275,10 +323,89 @@ def _memory_commands(registry: CLIRegistry) -> click.Group:
                 _source_option(registry),
                 _parser_option(registry),
                 _simulate_option(),
+                *_mount_mode_options(),
             ],
         )
     )
     return group
+
+
+def _mount_mode_options() -> list[click.Option]:
+    return [
+        click.Option(
+            ["--background/--foreground"],
+            default=False,
+            help="Detach after readiness; foreground is the default.",
+        ),
+        click.Option(
+            ["--startup-timeout"],
+            type=click.FloatRange(min=0, min_open=True),
+            default=120.0,
+            show_default=True,
+        ),
+    ]
+
+
+def _background_requested(arguments: Mapping[str, object], mountpoint: str) -> bool:
+    if not arguments["background"] or os.environ.get(WORKER_ENV) == "1":
+        return False
+    session = click.get_current_context().find_root().obj
+    if (
+        not isinstance(session, LoggingSession)
+        or session.custom_registry
+        or not session.arguments
+    ):
+        raise click.UsageError("background mode requires the default CLI registry")
+    start_background(
+        session.arguments, Path(mountpoint), float(str(arguments["startup_timeout"]))
+    )
+    click.echo(f"Mounted {Path(mountpoint).resolve()} in background")
+    return True
+
+
+def _unmount_command() -> click.Command:
+    @click.command(name="unmount", help="Unmount a SnapshotFS filesystem and return.")
+    @click.argument("mountpoint", type=click.Path(path_type=Path))
+    def command(mountpoint: Path) -> None:
+        unmount(mountpoint)
+
+    return command
+
+
+def _run_command() -> click.Command:
+    @click.command(
+        name="run", help="Mount a snapshot temporarily, run COMMAND, then unmount."
+    )
+    @click.argument("snapshot", type=click.Path(path_type=str))
+    @click.argument("command", nargs=-1, type=click.UNPROCESSED, required=True)
+    @click.option("--simulate-missing-content", is_flag=True)
+    @click.option(
+        "--startup-timeout",
+        type=click.FloatRange(min=0, min_open=True),
+        default=120.0,
+        show_default=True,
+    )
+    def run(
+        snapshot: str,
+        command: tuple[str, ...],
+        simulate_missing_content: bool,
+        startup_timeout: float,
+    ) -> int:
+        session = click.get_current_context().find_root().obj
+        options = (
+            ["--log-file", str(session.path)]
+            if isinstance(session, LoggingSession) and session.path
+            else []
+        )
+        return run_mounted(
+            snapshot,
+            command,
+            options,
+            simulate=simulate_missing_content,
+            timeout=startup_timeout,
+        )
+
+    return run
 
 
 def _source_option(registry: CLIRegistry) -> click.Option:

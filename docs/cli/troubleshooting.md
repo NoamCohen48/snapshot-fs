@@ -115,3 +115,24 @@ line when available, along with hints for encoding, date format, English
 and encoding instead of guessing decoded text. No settings are inferred or
 changed automatically. Logs may contain source paths and listing excerpts;
 check them before attaching to a bug report.
+
+
+## Background Startup Or Command Cleanup Fails
+
+`--background` reports success only after readiness. Use `--startup-timeout`
+when a large import needs more time; the default is 120 seconds. Worker errors
+are written to the same diagnostic log and startup errors are returned to the
+invoking terminal. Custom in-process CLI registries require foreground mode.
+
+`unmount` refuses unrelated filesystems. For a busy mount, close programs using
+it and retry. `run` cleans up on command completion, execution failure, and
+Ctrl-C, but programs that deliberately leave descendants or other processes
+holding the mount can prevent unmounting. Failures are reported; mounts are
+never lazily detached behind the user's back.
+
+## Source Times Are Shifted Or Rejected
+
+Pass `--source-timezone` with the producer's IANA timezone when importing.
+UTC is the explicit default, not a guess. Repeated daylight-saving times require
+`--ambiguous-time earlier` or `later`; nonexistent local times are rejected.
+See [source timestamps](../concepts/filesystem-listings.md#source-timestamps).
