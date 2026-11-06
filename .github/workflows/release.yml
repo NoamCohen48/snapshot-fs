@@ -33,7 +33,7 @@ jobs:
       - if: runner.os != 'Linux'
         run: uv sync --locked --no-dev
       - run: uv pip install 'pyinstaller==6.16.0'
-      - run: uv run --no-sync pyinstaller --clean --noconfirm --onefile --name snapshotfs --collect-submodules snapshotfs --copy-metadata snapshotfs src/snapshotfs/cli.py
+      - run: uv run --no-sync pyinstaller --clean --noconfirm --onefile --name snapshotfs --collect-submodules snapshotfs --copy-metadata snapshotfs --collect-all tzdata src/snapshotfs/cli.py
       - if: runner.os == 'Linux'
         run: |
           if [ ! -e /dev/fuse ]; then sudo modprobe fuse; fi
@@ -42,6 +42,7 @@ jobs:
         env:
           SNAPSHOTFS_MOUNT_TEST: '1'
           SNAPSHOTFS_TEST_CLI: ./dist/snapshotfs
+          PYTHONTZPATH: ''
       - if: runner.os == 'Linux'
         run: bash packaging/debian/build.sh
       - if: runner.os == 'Linux'

@@ -1,6 +1,7 @@
 """Streaming state machine for Windows ``dir /s`` listings."""
 
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import PureWindowsPath
 from typing import BinaryIO
 
@@ -21,16 +22,29 @@ from snapshotfs.parser.windows_dir.grammar import (
 )
 from snapshotfs.parser.windows_dir.paths import to_mounted_path
 from snapshotfs.parser.windows_dir.state import AggregateState, SectionState
+from snapshotfs.timestamps import localize, source_zone
 
 
 class WindowsDirParser:
     format_name = "windows-dir"
 
     def __init__(
-        self, encoding: str = "utf-8", date_format: DateFormat | str = DateFormat.MDY
+        self,
+        encoding: str = "utf-8",
+        date_format: DateFormat | str = DateFormat.MDY,
+        source_timezone: str = "UTC",
+        ambiguous_time: str = "reject",
     ) -> None:
         self.encoding = encoding
         self.date_format = DateFormat(date_format)
+        self.zone = source_zone(source_timezone)
+        if ambiguous_time not in {"reject", "earlier", "later"}:
+            raise ValueError("ambiguous_time must be reject, earlier, or later")
+        self.ambiguous_time = ambiguous_time
+        self.source_metadata = {
+            "source_timezone": source_timezone,
+            "ambiguous_time": ambiguous_time,
+        }
 
     def parse(self, stream: BinaryIO) -> ParseResult:
         diagnostics = DiagnosticCollector()
@@ -220,6 +234,19 @@ class WindowsDirParser:
                             continue
                         section.had_entries = True
                         if entry is not None:
+                            if entry.modified_local is not None:
+                                try:
+                                    timestamp = localize(
+                                        entry.modified_local,
+                                        self.zone,
+                                        self.ambiguous_time,
+                                    )
+                                except ValueError as exc:
+                                    diagnostics.error(
+                                        "INVALID_LOCAL_TIME", str(exc), number
+                                    )
+                                else:
+                                    entry = replace(entry, modified_local=timestamp)
                             yield entry
                             if entry.kind is NodeKind.FILE:
                                 assert entry.size is not None

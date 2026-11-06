@@ -79,7 +79,7 @@ ParsedEntry
   kind: directory | file
   observation: section_header | directory_entry | file_entry
   size: optional integer
-  modified_local: optional naive datetime
+  modified_local: optional source-local datetime (aware for built-in imports)
   source_line: optional integer
   content: optional bytes
   source_metadata
@@ -172,10 +172,13 @@ Windows Command Prompt output: English structural labels and an explicit date
 ordering. Date ordering defaults to `mdy` and can be selected with
 `--date-format mdy|dmy|ymd`; `/`, `-`, and `.` separators, four-digit years,
 and 12- or 24-hour times are accepted. Two-digit years are rejected to avoid an
-implicit century pivot. The parsed value is retained as a
-naive source-local datetime because `dir` supplies no timezone. JSON emits it as
-an ISO 8601 local value without a `Z` or offset. Duplicate comparisons use the
-naive value exactly.
+implicit century pivot. Because `dir` supplies no timezone, imports apply an
+explicit IANA source timezone (`--source-timezone`, default `UTC`). The built-in
+parser emits aware source-local datetimes; JSON and SQLite preserve their
+numeric offsets, and snapshot metadata records the named timezone and ambiguity
+policy. Repeated daylight-saving times are rejected unless the caller selects
+`--ambiguous-time earlier|later`; nonexistent local times are rejected. Legacy
+naive artifact timestamps retain their prior UTC mount interpretation.
 
 Example input:
 

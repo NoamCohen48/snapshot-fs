@@ -64,7 +64,7 @@ def test_normalizes_drive_synthesizes_parents_and_sorts_bytes(
     children = list(store.iter_children(alice.id))
     assert [node.mounted_name for node in children] == [b"Documents", b"notes file.txt"]
     assert store.lookup(alice.id, b"documents") is None
-    assert children[0].modified_at == datetime(2024, 1, 2, 15, 4)
+    assert children[0].modified_at == datetime(2024, 1, 2, 15, 4, tzinfo=UTC)
     assert children[0].source_line == 6
 
 

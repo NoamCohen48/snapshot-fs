@@ -24,6 +24,12 @@ shape:
 | `imported_at` | string | ISO 8601 import timestamp. |
 | `source_metadata` | object | JSON-compatible source metadata. |
 
+Built-in imports record `source_timezone` and `ambiguous_time` in snapshot
+`source_metadata`. Newly imported `modified_at` strings include a numeric UTC
+offset. Existing artifacts can still contain naive strings; mounting retains
+their legacy UTC interpretation. Reimport with an explicit source timezone to
+correct such timestamps.
+
 ## Nodes
 
 Every node, including the virtual root, has these fields:

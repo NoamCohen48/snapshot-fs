@@ -39,6 +39,7 @@ def _create_store[StoreT](
         source.uri,
         parser.format_name,
         datetime.now(UTC),
+        source_metadata=getattr(parser, "source_metadata", {}),
     )
     builder = builder_factory(snapshot)
     build_diagnostic: ImportDiagnostic | None = None

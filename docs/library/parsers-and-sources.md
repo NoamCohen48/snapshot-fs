@@ -57,3 +57,20 @@ fail-closed imports.
 Localized labels, UNC paths, alternate data streams, two-digit years, unsafe
 components, and malformed or reordered summaries are rejected. Decoding is
 strict and SnapshotFS performs no encoding detection.
+
+### Timezone Interpretation
+
+```python
+parser = WindowsDirParser(
+    encoding="cp1252",
+    date_format="mdy",
+    source_timezone="America/New_York",
+    ambiguous_time="reject",
+)
+```
+
+The default source timezone is `UTC`; returned `modified_local` values are now
+aware datetimes. `ambiguous_time` accepts `reject`, `earlier`, or `later`.
+Nonexistent daylight-saving local times produce import diagnostics and prevent
+publication. The source timezone and ambiguity policy are preserved in snapshot
+metadata; SQLite stores retain each timestamp's numeric offset.
