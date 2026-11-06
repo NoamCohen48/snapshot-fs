@@ -1,5 +1,5 @@
 import io
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -39,7 +39,7 @@ def test_happy_path_emits_headers_files_directories_and_spaces(
     assert file.path[-1] == "notes file.txt"
     assert file.path[:2] == ("C", "Users")
     assert file.size == 1234
-    assert file.modified_local == datetime(2024, 1, 2, 15, 5)
+    assert file.modified_local == datetime(2024, 1, 2, 15, 5, tzinfo=UTC)
 
 
 def test_windows_drive_is_an_uppercase_first_level_component() -> None:
@@ -120,7 +120,7 @@ def test_date_orders_separators_and_times(
     result = parse(text, date_format)
 
     assert result.diagnostics == ()
-    assert result.entries[1].modified_local == expected
+    assert result.entries[1].modified_local == expected.replace(tzinfo=UTC)
 
 
 @pytest.mark.parametrize(

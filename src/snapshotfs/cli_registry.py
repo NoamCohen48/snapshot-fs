@@ -8,6 +8,7 @@ import click
 
 from snapshotfs.parser import DateFormat, Parser, WindowsDirParser
 from snapshotfs.source import FileSource, Source
+from snapshotfs.timestamps import source_zone
 
 ENCODING_COMPLETIONS = (
     "utf-8",
@@ -245,6 +246,16 @@ def _complete_encoding(
     return [item for item in ENCODING_COMPLETIONS if item.startswith(incomplete)]
 
 
+def _validate_timezone(
+    context: click.Context, parameter: click.Parameter, value: str
+) -> str:
+    try:
+        source_zone(value)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc), ctx=context, param=parameter) from exc
+    return value
+
+
 def default_registry() -> CLIRegistry:
     """Return a fresh registry containing SnapshotFS's built-in components."""
     return CLIRegistry(
@@ -263,7 +274,10 @@ def default_registry() -> CLIRegistry:
             ParserRegistration(
                 "windows-dir",
                 lambda arguments: WindowsDirParser(
-                    str(arguments["encoding"]), str(arguments["date_format"])
+                    str(arguments["encoding"]),
+                    str(arguments["date_format"]),
+                    str(arguments["source_timezone"]),
+                    str(arguments["ambiguous_time"]),
                 ),
                 (
                     click.Option(
@@ -271,6 +285,20 @@ def default_registry() -> CLIRegistry:
                         default="utf-8",
                         show_default=True,
                         shell_complete=_complete_encoding,
+                    ),
+                    click.Option(
+                        ["--source-timezone"],
+                        default="UTC",
+                        show_default=True,
+                        callback=_validate_timezone,
+                        help="IANA timezone of the source timestamps.",
+                    ),
+                    click.Option(
+                        ["--ambiguous-time"],
+                        type=click.Choice(["reject", "earlier", "later"]),
+                        default="reject",
+                        show_default=True,
+                        help="Resolve repeated daylight-saving local times explicitly.",
                     ),
                     click.Option(
                         ["--date-format"],

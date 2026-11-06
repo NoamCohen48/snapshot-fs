@@ -113,7 +113,7 @@ def test_sqlite_show_json_preserves_parser_options(
     document = json.loads(capsys.readouterr().out)
     node = next(item for item in document["nodes"] if item["kind"] == "file")
     assert node["mounted_name"] == "caf\N{LATIN SMALL LETTER E WITH ACUTE}.txt"
-    assert node["modified_at"] == "2024-02-13T10:00:00"
+    assert node["modified_at"] == "2024-02-13T10:00:00+00:00"
 
 
 def test_create_errors_use_stderr_and_nonzero_status(
