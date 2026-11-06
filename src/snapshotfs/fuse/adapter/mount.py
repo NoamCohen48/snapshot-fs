@@ -1,5 +1,6 @@
 """FUSE lifecycle orchestration."""
 
+import logging
 import os
 import shutil
 from pathlib import Path
@@ -17,6 +18,12 @@ def mount_snapshot(
     *,
     simulate_missing_content: bool = False,
 ) -> None:
+    log = logging.getLogger(__name__)
+    log.info(
+        "Preparing mount at %s (simulate_missing_content=%s)",
+        mountpoint,
+        simulate_missing_content,
+    )
     path = Path(mountpoint)
     if not path.is_dir():
         raise RuntimeError(f"mountpoint must be an existing directory: {path}")
@@ -51,6 +58,9 @@ def mount_snapshot(
             "/dev/fuse access, and container FUSE permissions."
         ) from exc
     try:
+        log.info("Mounted at %s", mountpoint)
         trio.run(pyfuse3.main)
     finally:
+        log.info("Unmounting %s", mountpoint)
         pyfuse3.close(unmount=True)
+        log.info("Unmounted %s", mountpoint)

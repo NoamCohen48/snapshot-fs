@@ -1,5 +1,6 @@
 """Import orchestration with all-or-nothing publication."""
 
+import logging
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
@@ -31,6 +32,8 @@ def _create_store[StoreT](
     parser: Parser,
     builder_factory: Callable[[Snapshot], SnapshotBuilder[StoreT]],
 ) -> StoreT:
+    log = logging.getLogger(__name__)
+    log.info("Importing source=%s parser=%s", source.uri, parser.format_name)
     snapshot = Snapshot(
         str(uuid4()),
         source.uri,
@@ -71,8 +74,15 @@ def _create_store[StoreT](
                 )
         if result.has_errors or build_diagnostic is not None:
             raise ImportFailure(diagnostics, diagnostic_count)
-        return builder.finish(diagnostics, diagnostic_count)
+        store = builder.finish(diagnostics, diagnostic_count)
+        log.info(
+            "Import completed: snapshot=%s diagnostics=%d",
+            snapshot.id,
+            diagnostic_count,
+        )
+        return store
     except BaseException:
+        log.debug("Import aborted: snapshot=%s", snapshot.id, exc_info=True)
         with suppress(Exception):
             builder.abort()
         raise

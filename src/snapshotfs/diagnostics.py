@@ -1,6 +1,6 @@
 """Structured diagnostics shared by parsers and importers."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 
 MAX_DIAGNOSTICS = 1_000
@@ -43,12 +43,23 @@ class DiagnosticCollector:
         self._items: list[ImportDiagnostic] = []
         self.total = 0
         self.has_errors = False
+        self._source_line: tuple[int, str] | None = None
 
     @property
     def items(self) -> tuple[ImportDiagnostic, ...]:
         return tuple(self._items)
 
+    def observe_line(self, number: int, text: str) -> None:
+        """Retain only a bounded excerpt of the current line for error context."""
+        self._source_line = (number, text[:240] + ("…" if len(text) > 240 else ""))
+
     def add(self, diagnostic: ImportDiagnostic) -> None:
+        if self._source_line is not None:
+            number, text = self._source_line
+            if diagnostic.line_number == number:
+                diagnostic = replace(
+                    diagnostic, message=f"{diagnostic.message}; input: {text!a}"
+                )
         self.total += 1
         if diagnostic.severity is Severity.ERROR:
             self.has_errors = True

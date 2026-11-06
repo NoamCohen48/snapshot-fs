@@ -45,6 +45,9 @@ snapshotfs memory mount /tmp/snapshotfs-demo \
   --parser windows-dir --encoding utf-8 --date-format mdy
 ```
 
+If setup fails, run `snapshotfs doctor --mountpoint /tmp/snapshotfs-demo` for
+checks and use `snapshotfs -v memory mount ...` for verbose diagnostics.
+
 The command stays in the foreground. In another terminal:
 
 ```bash

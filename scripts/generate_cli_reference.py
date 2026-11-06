@@ -13,6 +13,7 @@ from snapshotfs.cli_registry import default_registry
 OUTPUT = Path(__file__).parents[1] / "docs" / "reference" / "cli.md"
 CASES = (
     ("Root Command", ("--help",)),
+    ("Doctor", ("doctor", "--help")),
     ("SQLite Commands", ("sqlite", "--help")),
     (
         "SQLite Create",
