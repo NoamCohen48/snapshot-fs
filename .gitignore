@@ -11,3 +11,10 @@ wheels/
 
 # Documentation build output
 docs/_build/
+
+# PyInstaller generated specifications
+*.spec
+
+# Native release package staging
+/release/
+/arch-build/
