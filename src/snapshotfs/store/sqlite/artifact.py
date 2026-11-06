@@ -32,7 +32,7 @@ def create_temporary(destination: Path) -> Path:
 
 def publish(temporary: Path, destination: Path, *, overwrite: bool) -> None:
     try:
-        with temporary.open("rb") as stream:
+        with temporary.open("r+b") as stream:
             os.fsync(stream.fileno())
     except OSError as exc:
         raise SQLitePersistenceError(

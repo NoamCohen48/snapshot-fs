@@ -1,4 +1,5 @@
 import io
+import re
 import sqlite3
 from contextlib import AbstractContextManager, nullcontext
 from datetime import UTC, datetime
@@ -256,11 +257,11 @@ def test_existing_destination_overwrite_and_failure_atomicity(tmp_path: Path) ->
 
 def test_missing_corrupt_schema_mismatch_and_close(tmp_path: Path) -> None:
     missing = tmp_path / "missing.db"
-    with pytest.raises(SQLiteStoreError, match=str(missing)):
+    with pytest.raises(SQLiteStoreError, match=re.escape(str(missing))):
         open_sqlite_store(missing)
     corrupt = tmp_path / "corrupt.db"
     corrupt.write_bytes(b"not sqlite")
-    with pytest.raises(SQLiteSchemaError, match=str(corrupt)):
+    with pytest.raises(SQLiteSchemaError, match=re.escape(str(corrupt))):
         open_sqlite_store(corrupt)
 
     path = tmp_path / "version.db"
