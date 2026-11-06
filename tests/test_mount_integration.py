@@ -4,7 +4,9 @@ Set SNAPSHOTFS_MOUNT_TEST=1 only on a host where mounting FUSE filesystems is
 permitted. Cleanup is attempted even when the assertion path fails.
 """
 
+import errno
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -19,33 +21,40 @@ _FUSERMOUNT = shutil.which("fusermount3")
 
 
 @pytest.mark.skipif(
-    not _ENABLED or not Path("/dev/fuse").exists() or _FUSERMOUNT is None,
+    not _ENABLED,
     reason="set SNAPSHOTFS_MOUNT_TEST=1 on a usable libfuse host",
 )
 @pytest.mark.parametrize("backend", ["memory", "sqlite"])
-def test_kernel_mount_smoke(listing_file: Path, tmp_path: Path, backend: str) -> None:
-    pytest.importorskip("pyfuse3")
-    assert _FUSERMOUNT is not None
+@pytest.mark.parametrize("simulate", [False, True])
+def test_kernel_mount_smoke(
+    listing_file: Path, tmp_path: Path, backend: str, simulate: bool
+) -> None:
+    if not os.environ.get("SNAPSHOTFS_TEST_CLI"):
+        __import__("pyfuse3")
+    assert Path("/dev/fuse").exists(), "FUSE device must be exposed for mount tests"
+    assert _FUSERMOUNT is not None, "fusermount3 must be installed for mount tests"
     mountpoint = tmp_path / "mount"
     mountpoint.mkdir()
+    executable = shlex.split(os.environ.get("SNAPSHOTFS_TEST_CLI", "")) or [
+        sys.executable,
+        "-m",
+        "snapshotfs.cli",
+    ]
     selectors = ["--source", "file", "--parser", "windows-dir"]
     if backend == "memory":
         command = [
-            sys.executable,
-            "-m",
-            "snapshotfs.cli",
+            *executable,
+            "memory",
             "mount",
+            str(mountpoint),
             str(listing_file),
             *selectors,
-            str(mountpoint),
         ]
     else:
         artifact = tmp_path / "snapshot.db"
         subprocess.run(
             [
-                sys.executable,
-                "-m",
-                "snapshotfs.cli",
+                *executable,
                 "sqlite",
                 "create",
                 str(artifact),
@@ -55,14 +64,14 @@ def test_kernel_mount_smoke(listing_file: Path, tmp_path: Path, backend: str) ->
             check=True,
         )
         command = [
-            sys.executable,
-            "-m",
-            "snapshotfs.cli",
+            *executable,
             "sqlite",
             "mount",
             str(artifact),
             str(mountpoint),
         ]
+    if simulate:
+        command.append("--simulate-missing-content")
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
@@ -82,6 +91,16 @@ def test_kernel_mount_smoke(listing_file: Path, tmp_path: Path, backend: str) ->
         assert (
             mountpoint / "C" / "Users" / "Alice" / "notes file.txt"
         ).stat().st_size == 1234
+        listed_file = mountpoint / "C" / "Users" / "Alice" / "notes file.txt"
+        if simulate:
+            assert listed_file.read_bytes() == bytes(1234)
+        else:
+            with pytest.raises(OSError) as caught:
+                listed_file.read_bytes()
+            assert caught.value.errno == errno.ENODATA
+        with pytest.raises(OSError) as caught:
+            (mountpoint / "new-file").write_text("forbidden")
+        assert caught.value.errno in {errno.EROFS, errno.EACCES}
     finally:
         if process.poll() is None:
             process.send_signal(signal.SIGINT)
@@ -97,3 +116,10 @@ def test_kernel_mount_smoke(listing_file: Path, tmp_path: Path, backend: str) ->
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+
+        if process.stderr is not None:
+            stderr = process.stderr.read()
+            if stderr:
+                print(stderr, file=sys.stderr)
+
+    assert not os.path.ismount(mountpoint)
