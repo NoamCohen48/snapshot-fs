@@ -121,9 +121,8 @@ def valid_section_path(raw_path: str) -> bool:
     if not remainder:
         return True
     components = remainder.split("\\")
-    return (
-        all(component not in {"", ".", ".."} for component in components)
-        and all(":" not in component for component in components)
+    return all(component not in {"", ".", ".."} for component in components) and all(
+        ":" not in component for component in components
     )
 
 
@@ -160,5 +159,9 @@ def _parse_datetime(
     try:
         return datetime(year, month, day, hour, minute)
     except ValueError as exc:
-        diagnostics.error("INVALID_DATETIME", str(exc), line_number)
+        diagnostics.error(
+            "INVALID_DATETIME",
+            f"{exc}; check --date-format {date_format.value} against the source date",
+            line_number,
+        )
         return None

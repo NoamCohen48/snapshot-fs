@@ -197,3 +197,18 @@ GitHub releases provide standalone CLI archives for Linux, macOS, and Windows,
 an SDK wheel and source distribution, and offline HTML documentation. See
 [Publishing](docs/publishing.md#github-releases) for platform support and the
 release process.
+
+## Troubleshooting
+
+Run `snapshotfs doctor --mountpoint /path/to/mount` to check FUSE setup and
+`snapshotfs --version` to identify the installed build. Commands automatically
+write a rotating diagnostic log; on Linux it defaults to
+`~/.local/state/snapshotfs/snapshotfs.log` (or `$XDG_STATE_HOME/snapshotfs/`).
+Use global options before the command for detailed troubleshooting:
+
+```bash
+snapshotfs -v --log-file ./snapshotfs-debug.log sqlite mount backup.snapshot /tmp/snapshotfs
+```
+
+See [troubleshooting](docs/cli/troubleshooting.md) for setup checks, import
+error hints, and log locations.

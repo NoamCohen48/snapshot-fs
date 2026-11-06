@@ -70,3 +70,48 @@ Directory listings usually contain sizes but not bytes. Reading a non-empty file
 with unavailable content returns `ENODATA` by default. See
 [missing file content](../concepts/missing-content.md) for the explicit
 zero-filled simulation mode and its limitations.
+
+## Doctor And Diagnostic Logs
+
+Start with a read-only environment check:
+
+```bash
+snapshotfs --version
+snapshotfs doctor
+snapshotfs doctor --mountpoint /tmp/snapshotfs
+```
+
+`doctor` reports each check separately and exits `1` if any required check fails.
+It checks Linux support, Python FUSE bindings, `fusermount3`, `/dev/fuse` and
+read/write access, plus whether an optional mountpoint exists, is empty and
+accessible, and is not already mounted. It does not modify the host or attempt a
+mount; container/kernel restrictions can still prevent a real mount.
+
+Commands write diagnostic logs automatically. On Linux the default is
+`$XDG_STATE_HOME/snapshotfs/snapshotfs.log`, or
+`~/.local/state/snapshotfs/snapshotfs.log` when `XDG_STATE_HOME` is unset. On
+macOS/Windows the log is in the platform application configuration directory;
+`doctor` prints the default location. Logs rotate at 2 MiB, keeping three backup
+files. A failure to open the default log produces a warning; an explicitly
+requested log file must be writable.
+
+Put global logging options **before** the command:
+
+```bash
+snapshotfs --verbose --log-file ./mount-debug.log sqlite mount backup.snapshot /tmp/snapshotfs
+snapshotfs -v --log-file ./import-debug.log sqlite create backup.snapshot \
+  --source file listing.txt --parser windows-dir --encoding cp1252 --date-format mdy
+```
+
+`--verbose` (`-v`) sends diagnostic logs and tracebacks to stderr. Normal stdout
+(including JSON output) remains suitable for scripts. File logs include the
+version/platform, selected components and settings, import progress, mount and
+unmount events, FUSE runtime logs, and exception tracebacks. Failed commands
+print the log location. Ctrl-C keeps its normal interrupt behavior.
+
+Import diagnostics include bounded, escaped excerpts of the offending decoded
+line when available, along with hints for encoding, date format, English
+`dir /s` syntax, and missing summaries. Decode failures report the byte offset
+and encoding instead of guessing decoded text. No settings are inferred or
+changed automatically. Logs may contain source paths and listing excerpts;
+check them before attaching to a bug report.

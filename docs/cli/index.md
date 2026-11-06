@@ -2,7 +2,9 @@
 
 [Documentation](../index.md)
 
-The CLI is organized by storage backend:
+Use `snapshotfs doctor` to check FUSE setup and `snapshotfs --version` to identify
+the build. Global `-v` / `--verbose` and `--log-file PATH` options go before the
+command. Import and mount commands are organized by storage backend:
 
 ```text
 snapshotfs
@@ -12,6 +14,7 @@ snapshotfs
 │   └── show
 ├── memory
 │   └── mount
+├── doctor
 └── completion
 ```
 

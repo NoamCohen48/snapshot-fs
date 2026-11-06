@@ -15,7 +15,9 @@ from snapshotfs.cli_registry import (
     StoreCLIRegistration,
     default_registry,
 )
+from snapshotfs.doctor import doctor_command
 from snapshotfs.fuse import FuseUnavailableError, mount_store
+from snapshotfs.logging_setup import LoggingSession, logger, package_version
 from snapshotfs.parser import Parser
 from snapshotfs.source import Source, SourceError
 from snapshotfs.store import ImportFailure
@@ -25,21 +27,68 @@ from snapshotfs.store.sqlite import create_sqlite_store, open_sqlite_store
 
 def main(argv: Sequence[str] | None = None, registry: CLIRegistry | None = None) -> int:
     """Run the CLI and return its process exit status."""
+    session = LoggingSession()
+    try:
+        status = _run(argv, registry, session)
+        if status not in {0, 130} and session.path is not None:
+            click.echo(f"Diagnostic log: {session.path}", err=True)
+        return status
+    finally:
+        session.close()
+
+
+def _run(
+    argv: Sequence[str] | None, registry: CLIRegistry | None, session: LoggingSession
+) -> int:
     try:
         command = build_cli(registry if registry is not None else default_registry())
         result = command.main(
             args=list(argv) if argv is not None else None,
             prog_name="snapshotfs",
             standalone_mode=False,
+            obj=session,
         )
     except click.ClickException as exc:
+        logger.debug("Command usage failed: %s", exc, exc_info=True)
         exc.show(file=sys.stderr)
         return exc.exit_code
     except ImportFailure as exc:
+        logger.exception("Snapshot import failed")
         from snapshotfs.cli_output import format_diagnostic
 
         for diagnostic in exc.diagnostics:
             click.echo(format_diagnostic(diagnostic), err=True)
+            logger.error(format_diagnostic(diagnostic))
+        codes = {diagnostic.code for diagnostic in exc.diagnostics}
+        hints = []
+        if "DECODE_ERROR" in codes:
+            hints.append(
+                "Set --encoding to the producer's encoding "
+                "(for example utf-8, cp1252, or utf-16)."
+            )
+        if codes & {"INVALID_DATETIME", "INVALID_TIME", "MALFORMED_ENTRY"}:
+            hints.append(
+                "Check --date-format mdy, dmy, or ymd against the source dates; "
+                "expected entries contain a date, time, <DIR> or size, and name."
+            )
+        if codes & {"UNKNOWN_LINE", "MISSING_SECTION"}:
+            hints.append(
+                "windows-dir requires English Windows dir /s output, including "
+                "'Directory of' headers; localized output and UNC paths "
+                "are unsupported."
+            )
+        if any(
+            "SUMMARY" in code or "FOOTER" in code or "TOTAL_MISMATCH" in code
+            for code in codes
+        ):
+            hints.append(
+                "Keep the complete dir /s listing, including File(s), Dir(s), "
+                "and Total Files Listed summaries; "
+                "do not trim or concatenate listings."
+            )
+        for hint in hints:
+            click.echo(f"hint: {hint}", err=True)
+            logger.info("Import hint: %s", hint)
         if exc.diagnostic_count > len(exc.diagnostics):
             click.echo(
                 f"{exc.diagnostic_count} diagnostics observed; "
@@ -48,35 +97,69 @@ def main(argv: Sequence[str] | None = None, registry: CLIRegistry | None = None)
             )
         return 1
     except SourceError as exc:
+        logger.exception("Source access failed")
         click.echo(f"error: {exc}", err=True)
         return 1
     except FuseUnavailableError as exc:
+        logger.exception("FUSE setup failed")
         click.echo(f"error: {exc}", err=True)
         return 1
     except click.Abort:
+        logger.info("Interrupted by user")
         click.echo("Aborted!", err=True)
         return 130
     except KeyboardInterrupt:
+        logger.info("Interrupted by user")
         return 130
     except (OSError, RuntimeError, RegistryError) as exc:
+        logger.exception("Command failed")
         click.echo(f"error: {exc}", err=True)
         return 1
+    except Exception as exc:
+        logger.exception("Unexpected command failure")
+        click.echo(f"error: {exc}; see the log file or retry with --verbose", err=True)
+        return 1
+    logger.info("Command completed")
     return result if isinstance(result, int) else 0
 
 
 def build_cli(registry: CLIRegistry) -> click.Group:
     """Build a root command from built-in and registered store command groups."""
-    root = click.Group(name="snapshotfs", help="Create and mount filesystem snapshots.")
+
+    @click.group(name="snapshotfs", help="Create and mount filesystem snapshots.")
+    @click.version_option(version=package_version(), prog_name="snapshotfs")
+    @click.option(
+        "--verbose",
+        "-v",
+        is_flag=True,
+        help="Show diagnostic logs and tracebacks on stderr.",
+    )
+    @click.option(
+        "--log-file",
+        type=click.Path(dir_okay=False),
+        help="Override the rotating diagnostic log file.",
+    )
+    @click.pass_context
+    def root(context: click.Context, verbose: bool, log_file: str | None) -> None:
+        session = context.obj
+        if not isinstance(session, LoggingSession):
+            session = LoggingSession()
+            context.call_on_close(session.close)
+            context.obj = session
+        session.configure(verbose, log_file)
+        logger.debug("Command: %s", context.invoked_subcommand)
+
     registrations = [*_builtin_stores(), *registry.stores]
     seen: set[str] = set()
     for registration in registrations:
-        if registration.name in seen or registration.name == "completion":
+        if registration.name in seen or registration.name in {"completion", "doctor"}:
             raise RegistryError(
                 f"duplicate or reserved store registration name {registration.name!r}"
             )
         seen.add(registration.name)
         root.add_command(registration.command_factory(registry), registration.name)
     root.add_command(_completion_command())
+    root.add_command(doctor_command())
     return root
 
 
@@ -95,6 +178,11 @@ def _sqlite_commands(registry: CLIRegistry) -> click.Group:
         if mountpoint is None and arguments["simulate_missing_content"]:
             raise click.UsageError("--simulate-missing-content requires --mount")
         source, parser = _create_components(registry, arguments)
+        logger.info(
+            "Creating SQLite snapshot %s (overwrite=%s)",
+            arguments["output"],
+            arguments["overwrite"],
+        )
         store = create_sqlite_store(
             source,
             parser,
@@ -139,9 +227,7 @@ def _sqlite_commands(registry: CLIRegistry) -> click.Group:
         is_flag=True,
         help="Return NUL stand-ins for declared missing file content.",
     )
-    def mount(
-        snapshot: str, mountpoint: str, simulate_missing_content: bool
-    ) -> None:
+    def mount(snapshot: str, mountpoint: str, simulate_missing_content: bool) -> None:
         with open_sqlite_store(snapshot) as store:
             mount_store(
                 store,
@@ -153,6 +239,7 @@ def _sqlite_commands(registry: CLIRegistry) -> click.Group:
     @click.argument("snapshot", type=click.Path(path_type=str))
     @click.option("--json", "as_json", is_flag=True)
     def show(snapshot: str, as_json: bool) -> None:
+        logger.info("Inspecting SQLite snapshot %s", snapshot)
         with open_sqlite_store(snapshot) as store:
             if as_json:
                 click.echo(
@@ -225,6 +312,8 @@ def _create_components(
 ) -> tuple[Source, Parser]:
     source_name = str(arguments["source"])
     parser_name = str(arguments["parser"])
+    logger.info("Selecting source=%s parser=%s", source_name, parser_name)
+    logger.debug("Component settings: %r", dict(arguments))
     return (
         registry.create_source(source_name, arguments),
         registry.create_parser(parser_name, arguments),

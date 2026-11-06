@@ -33,10 +33,11 @@ jobs:
       - if: runner.os != 'Linux'
         run: uv sync --locked --no-dev
       - run: uv pip install 'pyinstaller==6.16.0'
-      - run: uv run --no-sync pyinstaller --clean --noconfirm --onefile --name snapshotfs --collect-submodules snapshotfs src/snapshotfs/cli.py
+      - run: uv run --no-sync pyinstaller --clean --noconfirm --onefile --name snapshotfs --collect-submodules snapshotfs --copy-metadata snapshotfs src/snapshotfs/cli.py
       - if: runner.os == 'Linux'
         run: |
           if [ ! -e /dev/fuse ]; then sudo modprobe fuse; fi
+          ./dist/snapshotfs doctor
           uv run --no-sync pytest -q tests/test_mount_integration.py
         env:
           SNAPSHOTFS_MOUNT_TEST: '1'
@@ -50,6 +51,7 @@ jobs:
       - shell: bash
         run: |
           ./dist/snapshotfs --help
+          ./dist/snapshotfs --version
           mkdir -p release
           executable=snapshotfs
           if [ '${{ runner.os }}' = Windows ]; then executable=snapshotfs.exe; fi

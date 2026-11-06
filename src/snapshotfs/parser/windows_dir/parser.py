@@ -48,6 +48,7 @@ class WindowsDirParser:
             for decoded in iter_decoded_lines(stream, self.encoding):
                 line = decoded.text
                 number = decoded.number
+                diagnostics.observe_line(number, line)
                 if not line.strip() or is_volume(line):
                     continue
                 raw_path = header_path(line)
@@ -229,7 +230,10 @@ class WindowsDirParser:
                         continue
                 code = "MALFORMED_ENTRY" if resembles_entry(line) else "UNKNOWN_LINE"
                 diagnostics.error(
-                    code, f"unrecognized meaningful line: {line!r}", number
+                    code,
+                    "unrecognized meaningful line; expected a directory header, "
+                    "entry, or English summary",
+                    number,
                 )
         except DecodeError as exc:
             diagnostics.error("DECODE_ERROR", str(exc), exc.line_number)

@@ -18,12 +18,30 @@ Usage: snapshotfs [OPTIONS] COMMAND [ARGS]...
   Create and mount filesystem snapshots.
 
 Options:
-  --help  Show this message and exit.
+  --version        Show the version and exit.
+  -v, --verbose    Show diagnostic logs and tracebacks on stderr.
+  --log-file FILE  Override the rotating diagnostic log file.
+  --help           Show this message and exit.
 
 Commands:
   completion  Print shell completion registration code.
+  doctor      Check Linux FUSE setup without mounting or changing the host.
   memory      Build transient in-memory stores.
   sqlite      Create, mount, and display SQLite stores.
+```
+
+## Doctor
+
+`snapshotfs doctor --help`
+
+```text
+Usage: snapshotfs doctor [OPTIONS]
+
+  Check Linux FUSE setup without mounting or changing the host.
+
+Options:
+  --mountpoint PATH  Also check this proposed mount directory.
+  --help             Show this message and exit.
 ```
 
 ## SQLite Commands
