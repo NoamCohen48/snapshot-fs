@@ -1,0 +1,18 @@
+# Build from a staging directory containing snapshotfs, windows-dir.txt, PKGBUILD.
+# The release workflow sets pkgver to match pyproject.toml.
+pkgname=snapshotfs
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Mount validated filesystem inventories as read-only FUSE filesystems'
+arch=('x86_64')
+url='https://github.com/NoamCohen48/snapshot-fs'
+depends=('fuse3' 'glibc>=2.35')
+options=('!strip' '!debug')
+source=('snapshotfs' 'windows-dir.txt')
+# The release build replaces these with hashes of the staged inputs.
+sha256sums=('SKIP' 'SKIP')
+package() {
+  install -Dm755 "$srcdir/snapshotfs" "$pkgdir/usr/bin/snapshotfs"
+  install -Dm644 "$srcdir/windows-dir.txt" \
+    "$pkgdir/usr/share/doc/snapshotfs/examples/windows-dir.txt"
+}

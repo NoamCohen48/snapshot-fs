@@ -46,8 +46,23 @@ sudo apt install fuse3 libfuse3-dev pkg-config
 uv sync --extra fuse
 ```
 
-The mountpoint must already exist. Host permission and mountpoint errors come
-from FUSE and may differ by environment.
+The mountpoint must exist, be empty, and not already be mounted. Create one
+owned by your user with `mkdir -p /tmp/snapshotfs`. If `/dev/fuse` is absent,
+load the host module with `sudo modprobe fuse`. If `fusermount3` is absent,
+install `fuse3`. For device permission errors, check `ls -l /dev/fuse` and the
+host's device access policy. SnapshotFS reports these setup problems before
+starting the mount.
+
+Linux release packages include Python and its FUSE bindings. Install the `.deb`
+with `sudo apt install ./snapshotfs_VERSION_amd64.deb` or the Arch package with
+`sudo pacman -U ./snapshotfs-VERSION-1-x86_64.pkg.tar.zst` to resolve system
+dependencies. A plain Linux binary still needs the host `fuse3` package.
+
+Containers must expose the host FUSE device and allow mounting. For a disposable
+Docker test container use `--device /dev/fuse --cap-add SYS_ADMIN` and, on
+AppArmor hosts, `--security-opt apparmor=unconfined`. Installing packages inside
+a container cannot enable a missing host kernel module. Mounting is Linux-only;
+macOS and Windows binaries can create artifacts to mount on Linux.
 
 ## Files Cannot Be Read
 

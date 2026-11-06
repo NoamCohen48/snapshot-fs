@@ -8,9 +8,9 @@
   <a href="#getting-started">Getting Started</a> | <a href="docs/index.md">Documentation</a> | <a href="docs/development/">Development</a> | <a href="docs/architecture.md">Architecture</a>
 </p>
 
-**A composable toolkit for turning filesystem listings into validated,
-read-only snapshots.** Inspect an inventory, preserve it as an artifact, or
-mount it as a filesystem. A snapshot contains metadata; non-empty file content
+**Mount filesystem listings as validated, read-only FUSE filesystems.**
+Browse an offline inventory with ordinary filesystem tools, or preserve it as
+a portable SQLite artifact and mount it later. A snapshot contains metadata; non-empty file content
 is unavailable unless supplied separately.
 
 | Capability | Description |
@@ -22,10 +22,43 @@ is unavailable unless supplied separately.
 
 ---
 
+## Quick Start: Mount On Linux
+
+Install a release package (adjust the version):
+
+```bash
+# Debian / Ubuntu, x86-64
+sudo apt install ./snapshotfs_0.1.0_amd64.deb
+# Or Arch Linux, x86-64
+sudo pacman -U ./snapshotfs-0.1.0-1-x86_64.pkg.tar.zst
+```
+
+Both include Python and its FUSE bindings and depend on the system `fuse3`
+package. Mount the included sample:
+
+```bash
+mkdir -p /tmp/snapshotfs-demo
+snapshotfs memory mount /tmp/snapshotfs-demo \
+  --source file /usr/share/doc/snapshotfs/examples/windows-dir.txt \
+  --parser windows-dir --encoding utf-8 --date-format mdy
+```
+
+In another terminal, run `ls -l /tmp/snapshotfs-demo/C/Users/Alice` or browse
+with your file manager. Stop with Ctrl-C or
+`fusermount3 -u /tmp/snapshotfs-demo`.
+
+Names and metadata are available; original file contents are absent. Non-empty
+file reads return `ENODATA`. The optional `--simulate-missing-content` mount
+flag supplies zero-filled placeholders, not original content.
+
+See the [complete mounting quickstart](docs/getting-started.md).
+
 ## Requirements
 
-- Python 3.12 or newer.
-- Linux, libfuse 3, and the optional `fuse` extra to mount snapshots.
+- Mounting: Linux, FUSE 3, access to `/dev/fuse`, and an empty mountpoint.
+- Linux release packages and CLI binaries bundle Python and FUSE bindings.
+- Wheel/source installation: Python 3.12 or newer, plus the `fuse` extra to mount.
+- macOS and Windows binaries support import/inspection; mounting is Linux-only.
 
 ## Installation
 
@@ -35,6 +68,25 @@ and create the project environment:
 ```bash
 uv sync --all-groups
 ```
+
+Release downloads support both Python tool installation and standalone execution.
+Download the `.whl` from GitHub Releases, then choose one:
+
+```bash
+# Install the CLI into an isolated environment
+pipx install ./snapshotfs-0.1.0-py3-none-any.whl
+snapshotfs --help
+
+# Or run the CLI without a permanent installation
+uvx --from ./snapshotfs-0.1.0-py3-none-any.whl snapshotfs --help
+
+# Install the SDK (also installs the CLI entry point)
+python -m pip install ./snapshotfs-0.1.0-py3-none-any.whl
+```
+
+Adjust the wheel filename for the downloaded version. Alternatively, extract the
+CLI `.tgz` for your platform and run its `snapshotfs` executable directly
+(`snapshotfs.exe` on Windows). Standalone binaries do not require Python.
 
 For mount support on Debian or Ubuntu, install the system dependency and the
 optional Python dependencies:
@@ -138,3 +190,10 @@ See [Development](docs/development/) for the project layout, component
 boundaries, extension guidance, and quality-check commands. The detailed
 [architecture notes](docs/architecture.md) document the format and storage
 invariants.
+
+## Release downloads
+
+GitHub releases provide standalone CLI archives for Linux, macOS, and Windows,
+an SDK wheel and source distribution, and offline HTML documentation. See
+[Publishing](docs/publishing.md#github-releases) for platform support and the
+release process.

@@ -1,0 +1,144 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  ci:
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/ci.yml
+  binary:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux-x86_64
+          - os: macos-latest
+            platform: macos-arm64
+          - os: windows-latest
+            platform: windows-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fuse3 libfuse3-dev pkg-config
+      - if: runner.os == 'Linux'
+        run: uv sync --locked --group dev --extra fuse
+      - if: runner.os != 'Linux'
+        run: uv sync --locked --no-dev
+      - run: uv pip install 'pyinstaller==6.16.0'
+      - run: uv run --no-sync pyinstaller --clean --noconfirm --onefile --name snapshotfs --collect-submodules snapshotfs src/snapshotfs/cli.py
+      - if: runner.os == 'Linux'
+        run: |
+          if [ ! -e /dev/fuse ]; then sudo modprobe fuse; fi
+          uv run --no-sync pytest -q tests/test_mount_integration.py
+        env:
+          SNAPSHOTFS_MOUNT_TEST: '1'
+          SNAPSHOTFS_TEST_CLI: ./dist/snapshotfs
+      - if: runner.os == 'Linux'
+        run: bash packaging/debian/build.sh
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ./release/*.deb
+          SNAPSHOTFS_TEST_CLI=/usr/bin/snapshotfs SNAPSHOTFS_MOUNT_TEST=1 uv run --no-sync pytest -q tests/test_mount_integration.py
+      - shell: bash
+        run: |
+          ./dist/snapshotfs --help
+          mkdir -p release
+          executable=snapshotfs
+          if [ '${{ runner.os }}' = Windows ]; then executable=snapshotfs.exe; fi
+          tar -czf release/snapshotfs-cli-${{ matrix.platform }}.tgz -C dist "$executable"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.platform }}
+          path: release/*
+  arch:
+    needs: binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-x86_64
+          path: inputs
+      - run: |
+          mkdir -p arch-build release
+          tar -xzf inputs/snapshotfs-cli-linux-x86_64.tgz -C arch-build
+          cp packaging/arch/PKGBUILD examples/windows-dir.txt arch-build/
+          python3 - <<'PYCODE'
+          import hashlib, pathlib, tomllib
+          root = pathlib.Path('arch-build')
+          version = tomllib.load(open('pyproject.toml', 'rb'))['project']['version']
+          path = root / 'PKGBUILD'
+          text = path.read_text().replace('pkgver=0.1.0', f'pkgver={version}')
+          hashes = [hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ('snapshotfs', 'windows-dir.txt')]
+          path.write_text(text.replace("sha256sums=('SKIP' 'SKIP')", 'sha256sums=(' + ' '.join(repr(h) for h in hashes) + ')'))
+          PYCODE
+          cp tests/test_mount_integration.py tests/conftest.py arch-build/
+          if [ ! -e /dev/fuse ]; then sudo modprobe fuse; fi
+          docker run --rm --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor=unconfined -v "$PWD/arch-build:/build" archlinux:base-devel bash -ec '
+            pacman -Syu --noconfirm fuse3 python-pytest
+            useradd -m builder
+            chown -R builder:builder /build
+            cd /build
+            su builder -c "makepkg --noconfirm"
+            pacman -U --noconfirm ./*.pkg.tar.zst
+            snapshotfs --help
+            snapshotfs sqlite create /tmp/test.snapshot --source file /build/windows-dir.txt --parser windows-dir --encoding utf-8 --date-format mdy
+            snapshotfs sqlite show /tmp/test.snapshot
+            SNAPSHOTFS_MOUNT_TEST=1 SNAPSHOTFS_TEST_CLI=/usr/bin/snapshotfs pytest -q /build/test_mount_integration.py
+          '
+          cp arch-build/*.pkg.tar.zst release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-package
+          path: release/*
+  bundles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv sync --locked --all-groups
+      - run: |
+          python - <<'PY'
+          import os, tomllib
+          version = tomllib.load(open('pyproject.toml', 'rb'))['project']['version']
+          if os.environ['GITHUB_REF_TYPE'] == 'tag':
+              assert os.environ['GITHUB_REF_NAME'] == f'v{version}', 'Tag must match project version'
+          PY
+          uv build
+          uv run sphinx-build -W --keep-going -b html docs docs/_build/html
+          mkdir -p release
+          cp dist/* release/
+          tar -czf release/snapshotfs-sdk.tgz -C dist .
+          tar -czf release/snapshotfs-docs.tgz -C docs/_build/html .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundles
+          path: release/*
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [ci, binary, bundles, arch]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - run: sha256sum ./* > SHA256SUMS
+        working-directory: release
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" release/* --verify-tag --generate-notes
