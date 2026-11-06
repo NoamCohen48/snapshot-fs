@@ -15,6 +15,8 @@ snapshotfs
 ├── memory
 │   └── mount
 ├── doctor
+├── unmount
+├── run
 └── completion
 ```
 
@@ -26,7 +28,8 @@ snapshotfs sqlite create --source file --parser windows-dir --help
 ```
 
 The built-in `file` source contributes an `INPUT` argument. The built-in
-`windows-dir` parser contributes `--encoding` and `--date-format`.
+`windows-dir` parser contributes `--encoding`, `--date-format`,
+`--source-timezone`, and `--ambiguous-time`.
 
 ## Common Workflows
 

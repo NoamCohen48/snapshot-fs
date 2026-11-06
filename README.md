@@ -212,3 +212,24 @@ snapshotfs -v --log-file ./snapshotfs-debug.log sqlite mount backup.snapshot /tm
 
 See [troubleshooting](docs/cli/troubleshooting.md) for setup checks, import
 error hints, and log locations.
+
+## Mount Modes And Source Timezone
+
+```bash
+# Hold the terminal; Ctrl-C unmounts
+snapshotfs sqlite mount backup.snapshot /tmp/snapshotfs --foreground
+
+# Mount and return, then unmount with a separate one-shot command
+snapshotfs sqlite mount backup.snapshot /tmp/snapshotfs --background
+snapshotfs unmount /tmp/snapshotfs
+
+# Mount temporarily, run an existing tool, and clean up afterward
+snapshotfs run backup.snapshot -- find '{mountpoint}' -type f
+```
+
+When importing, pass `--source-timezone Asia/Jerusalem` (or the source machine's
+IANA timezone). The default is explicitly UTC; the host timezone is never
+assumed. New artifacts preserve offset-aware timestamps. Ambiguous daylight-saving
+times require `--ambiguous-time earlier` or `later`; nonexistent times are
+rejected. See [timestamp handling](docs/concepts/filesystem-listings.md#source-timestamps)
+and [mount modes](docs/cli/sqlite.md#three-mount-modes).

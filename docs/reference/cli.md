@@ -27,7 +27,9 @@ Commands:
   completion  Print shell completion registration code.
   doctor      Check Linux FUSE setup without mounting or changing the host.
   memory      Build transient in-memory stores.
+  run         Mount a snapshot temporarily, run COMMAND, then unmount.
   sqlite      Create, mount, and display SQLite stores.
+  unmount     Unmount a SnapshotFS filesystem and return.
 ```
 
 ## Doctor
@@ -42,6 +44,34 @@ Usage: snapshotfs doctor [OPTIONS]
 Options:
   --mountpoint PATH  Also check this proposed mount directory.
   --help             Show this message and exit.
+```
+
+## Unmount
+
+`snapshotfs unmount --help`
+
+```text
+Usage: snapshotfs unmount [OPTIONS] MOUNTPOINT
+
+  Unmount a SnapshotFS filesystem and return.
+
+Options:
+  --help  Show this message and exit.
+```
+
+## Command-scoped Mount
+
+`snapshotfs run --help`
+
+```text
+Usage: snapshotfs run [OPTIONS] SNAPSHOT COMMAND...
+
+  Mount a snapshot temporarily, run COMMAND, then unmount.
+
+Options:
+  --simulate-missing-content
+  --startup-timeout FLOAT RANGE  [default: 120.0; x>0]
+  --help                         Show this message and exit.
 ```
 
 ## SQLite Commands
@@ -72,16 +102,24 @@ Usage: snapshotfs sqlite create [OPTIONS] OUTPUT INPUT
   Parse a source into a persistent SQLite store.
 
 Options:
-  --source [file]              Source implementation used to read the listing.
-                               [required]
-  --parser [windows-dir]       Parser implementation used to interpret the listing.
-                               [required]
+  --source [file]                 Source implementation used to read the listing.
+                                  [required]
+  --parser [windows-dir]          Parser implementation used to interpret the listing.
+                                  [required]
   --overwrite
-  --mount PATH                 Mount the new store immediately at this path.
-  --simulate-missing-content   Return NUL stand-ins for declared missing file content.
-  --help                       Show this message and exit.
-  --encoding TEXT              [default: utf-8]
-  --date-format [mdy|dmy|ymd]  [default: mdy]
+  --mount PATH                    Mount the new store immediately at this path.
+  --simulate-missing-content      Return NUL stand-ins for declared missing file
+                                  content.
+  --background / --foreground     Detach after readiness; foreground is the default.
+  --startup-timeout FLOAT RANGE   [default: 120.0; x>0]
+  --help                          Show this message and exit.
+  --encoding TEXT                 [default: utf-8]
+  --source-timezone TEXT          IANA timezone of the source timestamps.  [default:
+                                  UTC]
+  --ambiguous-time [reject|earlier|later]
+                                  Resolve repeated daylight-saving local times
+                                  explicitly.  [default: reject]
+  --date-format [mdy|dmy|ymd]     [default: mdy]
 ```
 
 ## SQLite Mount
@@ -94,8 +132,10 @@ Usage: snapshotfs sqlite mount [OPTIONS] SNAPSHOT MOUNTPOINT
   Mount an existing SQLite store read-only.
 
 Options:
-  --simulate-missing-content  Return NUL stand-ins for declared missing file content.
-  --help                      Show this message and exit.
+  --simulate-missing-content     Return NUL stand-ins for declared missing file content.
+  --background / --foreground    Detach after readiness; foreground is the default.
+  --startup-timeout FLOAT RANGE  [default: 120.0; x>0]
+  --help                         Show this message and exit.
 ```
 
 ## SQLite Show
@@ -138,14 +178,22 @@ Usage: snapshotfs memory mount [OPTIONS] MOUNTPOINT INPUT
   Parse a source and mount it from memory.
 
 Options:
-  --source [file]              Source implementation used to read the listing.
-                               [required]
-  --parser [windows-dir]       Parser implementation used to interpret the listing.
-                               [required]
-  --simulate-missing-content   Return NUL stand-ins for declared missing file content.
-  --help                       Show this message and exit.
-  --encoding TEXT              [default: utf-8]
-  --date-format [mdy|dmy|ymd]  [default: mdy]
+  --source [file]                 Source implementation used to read the listing.
+                                  [required]
+  --parser [windows-dir]          Parser implementation used to interpret the listing.
+                                  [required]
+  --simulate-missing-content      Return NUL stand-ins for declared missing file
+                                  content.
+  --background / --foreground     Detach after readiness; foreground is the default.
+  --startup-timeout FLOAT RANGE   [default: 120.0; x>0]
+  --help                          Show this message and exit.
+  --encoding TEXT                 [default: utf-8]
+  --source-timezone TEXT          IANA timezone of the source timestamps.  [default:
+                                  UTC]
+  --ambiguous-time [reject|earlier|later]
+                                  Resolve repeated daylight-saving local times
+                                  explicitly.  [default: reject]
+  --date-format [mdy|dmy|ymd]     [default: mdy]
 ```
 
 ## Completion

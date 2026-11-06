@@ -36,6 +36,8 @@ class LoggingSession:
     def __init__(self) -> None:
         self.handlers: list[logging.Handler] = []
         self.path: Path | None = None
+        self.arguments: list[str] = []
+        self.custom_registry = False
         self.previous_level = logger.level
         self.previous_propagate = logger.propagate
         self.dependencies = [logging.getLogger(name) for name in ("pyfuse3", "trio")]

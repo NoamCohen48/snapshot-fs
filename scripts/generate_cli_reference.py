@@ -14,6 +14,8 @@ OUTPUT = Path(__file__).parents[1] / "docs" / "reference" / "cli.md"
 CASES = (
     ("Root Command", ("--help",)),
     ("Doctor", ("doctor", "--help")),
+    ("Unmount", ("unmount", "--help")),
+    ("Command-scoped Mount", ("run", "--help")),
     ("SQLite Commands", ("sqlite", "--help")),
     (
         "SQLite Create",

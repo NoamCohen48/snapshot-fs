@@ -9,6 +9,7 @@ import pyfuse3  # type: ignore[import-not-found]
 import trio  # type: ignore[import-not-found]
 
 from snapshotfs.fuse.adapter.operations import SnapshotOperations
+from snapshotfs.mount_session import READY_ENV
 from snapshotfs.store import SnapshotStore
 
 
@@ -49,7 +50,7 @@ def mount_snapshot(
         store, simulate_missing_content=simulate_missing_content
     )
     options = set(pyfuse3.default_options)
-    options.update({"fsname=snapshotfs", "ro"})
+    options.update({"fsname=snapshotfs", "subtype=snapshotfs", "ro"})
     try:
         pyfuse3.init(operations, mountpoint, options)
     except (OSError, RuntimeError) as exc:
@@ -58,6 +59,13 @@ def mount_snapshot(
             "/dev/fuse access, and container FUSE permissions."
         ) from exc
     try:
+        descriptor = os.environ.pop(READY_ENV, None)
+        if descriptor is not None:
+            ready_fd = int(descriptor)
+            try:
+                os.write(ready_fd, b"1")
+            finally:
+                os.close(ready_fd)
         log.info("Mounted at %s", mountpoint)
         trio.run(pyfuse3.main)
     finally:
