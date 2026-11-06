@@ -1,5 +1,6 @@
 import codecs
 import io
+import re
 from pathlib import Path
 
 import pytest
@@ -33,7 +34,7 @@ def test_file_source_errors_include_path(tmp_path: Path, kind: str) -> None:
         path.mkdir()
     source = FileSource(path)
 
-    with pytest.raises(SourceError, match=str(path)), source.open():
+    with pytest.raises(SourceError, match=re.escape(str(path))), source.open():
         pass
 
 

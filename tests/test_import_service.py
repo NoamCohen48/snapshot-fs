@@ -396,7 +396,7 @@ def test_multibyte_overlong_mounted_name_fails_both_import_backends(
  0 Dir(s) 0 bytes free
 """
     source_path = tmp_path / "overlong.txt"
-    source_path.write_text(text)
+    source_path.write_text(text, encoding="utf-8")
     source = FileSource(source_path)
     with pytest.raises(ImportFailure) as memory_failure:
         create_memory_store(source, WindowsDirParser())
