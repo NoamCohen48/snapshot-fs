@@ -50,12 +50,8 @@ def main(argv: Sequence[str] | None = None, registry: CLIRegistry | None = None)
     except SourceError as exc:
         click.echo(f"error: {exc}", err=True)
         return 1
-    except FuseUnavailableError:
-        click.echo(
-            "error: FUSE support is unavailable; install it with "
-            "`uv sync --extra fuse`",
-            err=True,
-        )
+    except FuseUnavailableError as exc:
+        click.echo(f"error: {exc}", err=True)
         return 1
     except click.Abort:
         click.echo("Aborted!", err=True)

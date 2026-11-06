@@ -122,7 +122,12 @@ class SnapshotOperations(  # type: ignore[misc]
             raise pyfuse3.FUSEError(errno.EROFS)
         handle = self._allocate_handle()
         self._file_handles[handle] = inode
-        return pyfuse3.FileInfo(fh=handle, keep_cache=True)
+        # Buffered read-ahead can replace an unavailable-content errno with EIO
+        # on some kernels. Return these read errors directly to the caller.
+        unavailable = node.content is None and not self._simulate_missing_content
+        return pyfuse3.FileInfo(
+            fh=handle, keep_cache=not unavailable, direct_io=unavailable
+        )
 
     async def read(self, fh: int, off: int, size: int) -> bytes:
         node = self._node(self._file_handle(fh))

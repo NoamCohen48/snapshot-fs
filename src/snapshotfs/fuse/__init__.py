@@ -35,7 +35,9 @@ def mount_store(
         if exc.name not in {"pyfuse3", "trio"}:
             raise
         raise FuseUnavailableError(
-            "FUSE support is unavailable; install the 'fuse' extra"
+            "FUSE mounting requires Linux and the optional Python dependencies. "
+            "Install the SnapshotFS .deb or Arch package, or install "
+            "snapshotfs[fuse] with pip/uv and the system fuse3 package."
         ) from exc
     mount_snapshot = cast(_MountSnapshot, adapter.mount_snapshot)
     mount_snapshot(

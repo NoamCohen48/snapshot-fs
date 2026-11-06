@@ -216,6 +216,7 @@ def test_open_read_release_and_simulation() -> None:
     async def exercise() -> None:
         inline = child(snapshot, b"inline")
         info = await operations.open(inline.id, os.O_RDONLY, None)
+        assert not info.direct_io
         assert await operations.read(info.fh, 1, 3) == b"bcd"
         await operations.release(info.fh)
         with pytest.raises(pyfuse3.FUSEError) as bad_handle:
@@ -224,12 +225,14 @@ def test_open_read_release_and_simulation() -> None:
 
         missing = child(snapshot, b"missing")
         missing_info = await operations.open(missing.id, os.O_RDONLY, None)
+        assert missing_info.direct_io
         with pytest.raises(pyfuse3.FUSEError) as no_data:
             await operations.read(missing_info.fh, 0, 2)
         assert_fuse_error(no_data, errno.ENODATA)
         assert await operations.read(missing_info.fh, 5, 2) == b""
 
         simulated_info = await simulated.open(missing.id, os.O_RDONLY, None)
+        assert not simulated_info.direct_io
         assert await simulated.read(simulated_info.fh, 3, 8) == b"\0\0"
         zero = child(snapshot, b"zero")
         zero_info = await simulated.open(zero.id, os.O_RDONLY, None)
